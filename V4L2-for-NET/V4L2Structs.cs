@@ -34,7 +34,7 @@ namespace V4L2_for_NET
             }
         }
 
-        public static int GetSize() { return 0; }
+        public abstract int GetSize();
     }
 
     public class v4l2_rect : V4L2Struct
@@ -44,7 +44,7 @@ namespace V4L2_for_NET
         public UInt32 width;
         public UInt32 height;
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 + 4 + 4 + 4;
         }
@@ -77,7 +77,7 @@ namespace V4L2_for_NET
         public UInt32 numerator;
         public UInt32 denominator;
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 + 4;
         }
@@ -107,7 +107,7 @@ namespace V4L2_for_NET
         public UInt32 width;
         public UInt32 height;
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 + 4;
         }
@@ -170,7 +170,7 @@ namespace V4L2_for_NET
         public v4l2_quantization quantization;
         public v4l2_xfer_func xfer_func;
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 12 * 4;
         }
@@ -225,7 +225,7 @@ namespace V4L2_for_NET
         public UInt32 mbus_code;        /* Media bus code    */
         public UInt32[] reserved = new UInt32[3];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 8 + 32;
         }
@@ -269,7 +269,7 @@ namespace V4L2_for_NET
         public UInt32 width;        /* Frame width [pixel] */
         public UInt32 height;       /* Frame height [pixel] */
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 + 4;
         }
@@ -302,7 +302,7 @@ namespace V4L2_for_NET
         public UInt32 max_height;   /* Maximum frame height [pixel] */
         public UInt32 step_height;  /* Frame height step size [pixel] */
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 6;
         }
@@ -342,14 +342,14 @@ namespace V4L2_for_NET
         public v4l2_frmsizetypes type;     /* Frame size type the device supports. */
 
         //union {					/* Frame size */
-        static int u_size = Math.Max(v4l2_frmsize_discrete.GetSize(), v4l2_frmsize_stepwise.GetSize());
         public v4l2_frmsize_discrete discrete = new v4l2_frmsize_discrete();
         public v4l2_frmsize_stepwise stepwise = new v4l2_frmsize_stepwise();
+        int u_size { get { return Math.Max(discrete.GetSize(), stepwise.GetSize()); } }
         //};
 
         public UInt32[] reserved = new UInt32[2];			/* Reserved space for future use */
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 3 + u_size;
         }
@@ -367,14 +367,14 @@ namespace V4L2_for_NET
                     case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE:
                         {
                             bw.Write(discrete.Buffer);
-                            Fill(u_size - v4l2_frmsize_discrete.GetSize());
+                            Fill(u_size - discrete.GetSize());
                             break;
                         }
                     case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_CONTINUOUS:
                     case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_STEPWISE:
                         {
                             bw.Write(stepwise.Buffer);
-                            Fill(u_size - v4l2_frmsize_stepwise.GetSize());
+                            Fill(u_size - stepwise.GetSize());
                             break;
                         }
                 }
@@ -394,15 +394,15 @@ namespace V4L2_for_NET
                 {
                     case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE:
                         {
-                            discrete.Buffer = br.ReadBytes(v4l2_frmsize_discrete.GetSize());
-                            ms.Position += u_size - v4l2_frmsize_discrete.GetSize();
+                            discrete.Buffer = br.ReadBytes(discrete.GetSize());
+                            ms.Position += u_size - discrete.GetSize();
                             break;
                         }
                     case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_CONTINUOUS:
                     case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_STEPWISE:
                         {
-                            stepwise.Buffer = br.ReadBytes(v4l2_frmsize_stepwise.GetSize());
-                            ms.Position += u_size - v4l2_frmsize_stepwise.GetSize();
+                            stepwise.Buffer = br.ReadBytes(stepwise.GetSize());
+                            ms.Position += u_size - stepwise.GetSize();
                             break;
                         }
                 }
@@ -418,9 +418,9 @@ namespace V4L2_for_NET
         public v4l2_fract max = new v4l2_fract();       /* Maximum frame interval [s] */
         public v4l2_fract step = new v4l2_fract();      /* Frame interval step size [s] */
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return v4l2_fract.GetSize() * 3;
+            return min.GetSize() * 3;
         }
 
         public override byte[] Buffer
@@ -438,9 +438,9 @@ namespace V4L2_for_NET
                 ms.SetLength(0);
                 ms.Write(value);
                 ms.Position = 0;
-                min.Buffer = br.ReadBytes(v4l2_fract.GetSize());
-                max.Buffer = br.ReadBytes(v4l2_fract.GetSize());
-                step.Buffer = br.ReadBytes(v4l2_fract.GetSize());
+                min.Buffer = br.ReadBytes(min.GetSize());
+                max.Buffer = br.ReadBytes(max.GetSize());
+                step.Buffer = br.ReadBytes(step.GetSize());
             }
         }
     };
@@ -454,14 +454,14 @@ namespace V4L2_for_NET
         public v4l2_frmivaltypes type;     /* Frame interval type the device supports. */
 
         //union {					/* Frame interval */
-        static int u_size = Math.Max(v4l2_fract.GetSize(), v4l2_frmival_stepwise.GetSize());
         public v4l2_fract discrete = new v4l2_fract();
         public v4l2_frmival_stepwise stepwise = new v4l2_frmival_stepwise();
+        int u_size { get { return Math.Max(discrete.GetSize(), stepwise.GetSize()); } }
         //};
 
         public UInt32[] reserved = new UInt32[2];			/* Reserved space for future use */
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 5 + u_size;
         }
@@ -481,14 +481,14 @@ namespace V4L2_for_NET
                     case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE:
                         {
                             bw.Write(discrete.Buffer);
-                            Fill(u_size - v4l2_fract.GetSize());
+                            Fill(u_size - discrete.GetSize());
                             break;
                         }
                     case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_CONTINUOUS:
                     case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_STEPWISE:
                         {
                             bw.Write(stepwise.Buffer);
-                            Fill(u_size - v4l2_frmival_stepwise.GetSize());
+                            Fill(u_size - stepwise.GetSize());
                             break;
                         }
                 }
@@ -510,15 +510,15 @@ namespace V4L2_for_NET
                 {
                     case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE:
                         {
-                            discrete.Buffer = br.ReadBytes(v4l2_fract.GetSize());
-                            ms.Position += u_size - v4l2_fract.GetSize();
+                            discrete.Buffer = br.ReadBytes(discrete.GetSize());
+                            ms.Position += u_size - discrete.GetSize();
                             break;
                         }
                     case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_CONTINUOUS:
                     case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_STEPWISE:
                         {
-                            stepwise.Buffer = br.ReadBytes(v4l2_frmival_stepwise.GetSize());
-                            ms.Position += u_size - v4l2_frmival_stepwise.GetSize();
+                            stepwise.Buffer = br.ReadBytes(stepwise.GetSize());
+                            ms.Position += u_size - stepwise.GetSize();
                             break;
                         }
                 }
@@ -538,7 +538,7 @@ namespace V4L2_for_NET
         public byte hours;
         public byte[] userbits = new byte[4];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 4;
         }
@@ -611,7 +611,7 @@ namespace V4L2_for_NET
         /// </summary>
         public UInt32 jpeg_markers;
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 5 + 120;
         }
@@ -661,7 +661,7 @@ namespace V4L2_for_NET
         public byte flags;
         public byte[] reserved = new byte[3];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 5;
         }
@@ -756,7 +756,7 @@ namespace V4L2_for_NET
             u_br = new BinaryReader(u_ms);
         }
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 16;
         }
@@ -800,7 +800,7 @@ namespace V4L2_for_NET
         public long tv_sec;
         public long tv_usec;
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 8 + 8;
         }
@@ -853,7 +853,7 @@ namespace V4L2_for_NET
 
         public v4l2_buffer() : base()
         {
-            planes_data = Marshal.AllocHGlobal(v4l2_plane.GetSize() * (int)VIDEO_MAX.PLANES);
+            planes_data = Marshal.AllocHGlobal(planes[0].GetSize() * (int)VIDEO_MAX.PLANES);
         }
 
         ~v4l2_buffer()
@@ -861,9 +861,9 @@ namespace V4L2_for_NET
             Marshal.FreeHGlobal(planes_data);
         }
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return 4 * 11 + timeval.GetSize() + v4l2_timecode.GetSize();
+            return 4 * 11 + timestamp.GetSize() + timecode.GetSize();
         }
 
         public override byte[] Buffer
@@ -884,7 +884,7 @@ namespace V4L2_for_NET
                 {
                     for (int i =0; i<length; i++)
                     {
-                        Marshal.Copy(planes[i].Buffer, 0, planes_data + (v4l2_plane.GetSize() * i), v4l2_plane.GetSize());
+                        Marshal.Copy(planes[i].Buffer, 0, planes_data + (planes[i].GetSize() * i), planes[i].GetSize());
                     }
                     bw.Write(planes_data);
                 }
@@ -931,8 +931,8 @@ namespace V4L2_for_NET
                 bytesused = br.ReadUInt32();
                 flags = br.ReadUInt32();
                 field = br.ReadUInt32();
-                timestamp.Buffer = br.ReadBytes(timeval.GetSize());
-                timecode.Buffer = br.ReadBytes(v4l2_timecode.GetSize());
+                timestamp.Buffer = br.ReadBytes(timestamp.GetSize());
+                timecode.Buffer = br.ReadBytes(timecode.GetSize());
                 sequence = br.ReadUInt32();
                 memory = (v4l2_memory)br.ReadUInt32();
                 if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
@@ -975,8 +975,8 @@ namespace V4L2_for_NET
                     // Now we can read planes if needed
                     for (int i = 0; i < length; i++)
                     {
-                        byte[] buf = new byte[v4l2_plane.GetSize()];
-                        Marshal.Copy(planes_data, buf, 0, v4l2_plane.GetSize());
+                        byte[] buf = new byte[planes[i].GetSize()];
+                        Marshal.Copy(planes_data, buf, 0, planes[i].GetSize());
                         planes[i].Buffer = buf;
                     }
                 }
@@ -993,7 +993,7 @@ namespace V4L2_for_NET
         public Int32 fd;
         public UInt32[] reserved = new UInt32[11];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 16;
         }
@@ -1050,7 +1050,7 @@ namespace V4L2_for_NET
             public UInt32 priv;     /* reserved field, set to 0 */
         //   } fmt;
 
-        public new static int GetSize()
+        public override int GetSize()
         {
             return 4 * 12;
         }
@@ -1134,9 +1134,9 @@ namespace V4L2_for_NET
         public UInt32 readbuffers;
         public UInt32[] reserved = new UInt32[4];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return 4 * 8 + v4l2_fract.GetSize();
+            return 4 * 8 + timeperframe.GetSize();
         }
 
         public override byte[] Buffer
@@ -1162,7 +1162,7 @@ namespace V4L2_for_NET
                 ms.Position = 0;
                 capability = br.ReadUInt32();
                 capturemode = br.ReadUInt32();
-                timeperframe.Buffer = br.ReadBytes(v4l2_fract.GetSize());
+                timeperframe.Buffer = br.ReadBytes(timeperframe.GetSize());
                 extendedmode = br.ReadUInt32();
                 readbuffers = br.ReadUInt32();
                 reserved[0] = br.ReadUInt32();
@@ -1197,9 +1197,9 @@ namespace V4L2_for_NET
         public UInt32 writebuffers;
         public UInt32[] reserved = new UInt32[4];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return 4 * 8 + v4l2_fract.GetSize();
+            return 4 * 8 + timeperframe.GetSize();
         }
 
         public override byte[] Buffer
@@ -1225,7 +1225,7 @@ namespace V4L2_for_NET
                 ms.Position = 0;
                 capability = br.ReadUInt32();
                 outputmode = br.ReadUInt32();
-                timeperframe.Buffer = br.ReadBytes(v4l2_fract.GetSize());
+                timeperframe.Buffer = br.ReadBytes(timeperframe.GetSize());
                 extendedmode = br.ReadUInt32();
                 writebuffers = br.ReadUInt32();
                 reserved[0] = br.ReadUInt32();
@@ -1243,9 +1243,9 @@ namespace V4L2_for_NET
         public v4l2_rect defrect = new v4l2_rect();
         public v4l2_fract pixelaspect = new v4l2_fract();
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return 4 + (v4l2_rect.GetSize() * 2) + v4l2_fract.GetSize();
+            return 4 + (bounds.GetSize() * 2) + pixelaspect.GetSize();
         }
 
         public override byte[] Buffer
@@ -1265,9 +1265,9 @@ namespace V4L2_for_NET
                 ms.Write(value);
                 ms.Position = 0;
                 type = (v4l2_buf_type)br.ReadUInt32();
-                bounds.Buffer = br.ReadBytes(v4l2_rect.GetSize());
-                defrect.Buffer = br.ReadBytes(v4l2_rect.GetSize());
-                pixelaspect.Buffer = br.ReadBytes(v4l2_fract.GetSize());
+                bounds.Buffer = br.ReadBytes(bounds.GetSize());
+                defrect.Buffer = br.ReadBytes(defrect.GetSize());
+                pixelaspect.Buffer = br.ReadBytes(pixelaspect.GetSize());
             }
         }
     };
@@ -1277,9 +1277,9 @@ namespace V4L2_for_NET
         public v4l2_buf_type type;
         public v4l2_rect c = new v4l2_rect();
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return 4 + v4l2_rect.GetSize();
+            return 4 + c.GetSize();
         }
 
         public override byte[] Buffer
@@ -1297,7 +1297,7 @@ namespace V4L2_for_NET
                 ms.Write(value);
                 ms.Position = 0;
                 type = (v4l2_buf_type)br.ReadUInt32();
-                c.Buffer = br.ReadBytes(v4l2_rect.GetSize());
+                c.Buffer = br.ReadBytes(c.GetSize());
             }
         }
     };
@@ -1310,9 +1310,9 @@ namespace V4L2_for_NET
         public v4l2_rect r = new v4l2_rect();
         public UInt32[] reserved = new UInt32[9];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return 4 * 12 + v4l2_rect.GetSize();
+            return 4 * 12 + r.GetSize();
         }
 
         public override byte[] Buffer
@@ -1338,7 +1338,7 @@ namespace V4L2_for_NET
                 type = (v4l2_buf_type)br.ReadUInt32();
                 target = br.ReadUInt32();
                 flags = br.ReadUInt32();
-                r.Buffer = br.ReadBytes(v4l2_rect.GetSize());
+                r.Buffer = br.ReadBytes(r.GetSize());
                 for (int i=0; i<9; i++)
                 {
                     reserved[i] = br.ReadUInt32();
@@ -1359,9 +1359,9 @@ namespace V4L2_for_NET
         public UInt32 framelines;
         public UInt32[] reserved = new UInt32[4];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return 4 * 8 + 24 + v4l2_fract.GetSize();
+            return 4 * 8 + 24 + frameperiod.GetSize();
         }
 
         public override byte[] Buffer
@@ -1394,7 +1394,7 @@ namespace V4L2_for_NET
                 {
                     name[i] = br.ReadByte();
                 }
-                frameperiod.Buffer = br.ReadBytes(v4l2_fract.GetSize());
+                frameperiod.Buffer = br.ReadBytes(frameperiod.GetSize());
                 framelines = br.ReadUInt32();
                 for (int i = 0; i < 4; i++)
                 {
@@ -1427,9 +1427,9 @@ namespace V4L2_for_NET
         public byte hdmi_vic;
         public byte[] reserved = new byte[46];
 
-        public new static int GetSize()
+        public override int GetSize()
         {
-            return 4 * 17 + 48 + v4l2_fract.GetSize();
+            return 4 * 17 + 48 + picture_aspect.GetSize();
         }
 
         public override byte[] Buffer
@@ -1483,7 +1483,7 @@ namespace V4L2_for_NET
                 il_vbackporch = br.ReadUInt32();
                 standards = br.ReadUInt32();
                 flags = br.ReadUInt32();
-                picture_aspect.Buffer = br.ReadBytes(v4l2_fract.GetSize());
+                picture_aspect.Buffer = br.ReadBytes(picture_aspect.GetSize());
                 cea861_vic = br.ReadByte();
                 hdmi_vic = br.ReadByte();
                 for (int i = 0; i < 46; i++)
