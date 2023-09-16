@@ -132,7 +132,7 @@ namespace V4L2_for_NET
         }
     };
 
-    public class v4l2_capability
+    public class v4l2_capability : V4L2Struct
     {
         byte[] driver = new byte[16];
         byte[] card = new byte[32];
@@ -141,6 +141,53 @@ namespace V4L2_for_NET
         UInt32 capabilities;
         UInt32 device_caps;
         UInt32[] reserved = new UInt32[3];
+
+        public override int GetSize()
+        {
+            return 4 * 6 + 64;
+        }
+
+        public override byte[] Buffer
+        {
+            get
+            {
+                ms.SetLength(0);
+                for (int i = 0; i < 16; i++)
+                {
+                    bw.Write(driver[i]);
+                }
+                for (int i = 0; i < 32; i++)
+                {
+                    bw.Write(card[i]);
+                }
+                for (int i = 0; i < 32; i++)
+                {
+                    bw.Write(bus_info[i]);
+                }
+                bw.Write(version);
+                bw.Write(capabilities);
+                bw.Write(device_caps);
+                bw.Write(reserved[0]);
+                bw.Write(reserved[1]);
+                bw.Write(reserved[2]);
+                return ms.ToArray();
+            }
+            set
+            {
+                ms.SetLength(0);
+                ms.Write(value);
+                ms.Position = 0;
+                driver= br.ReadBytes(16);
+                card= br.ReadBytes(32);
+                bus_info = br.ReadBytes(32);
+                version = br.ReadUInt32();
+                capabilities = br.ReadUInt32();
+                device_caps = br.ReadUInt32();
+                reserved[0] = br.ReadUInt32();
+                reserved[1] = br.ReadUInt32();
+                reserved[2] = br.ReadUInt32();
+            }
+        }
     };
 
     public class v4l2_pix_format : V4L2Struct
