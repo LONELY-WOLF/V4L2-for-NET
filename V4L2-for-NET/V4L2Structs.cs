@@ -144,7 +144,7 @@ namespace V4L2_for_NET
 
         public override int GetSize()
         {
-            return 4 * 6 + 64;
+            return 4 * 6 + 16 + 32 + 32;
         }
 
         public override byte[] Buffer
@@ -836,7 +836,7 @@ namespace V4L2_for_NET
                 data_offset = br.ReadUInt32();
                 for (int i = 0; i < 11; i++)
                 {
-                    reserved[i] = br.ReadByte();
+                    reserved[i] = br.ReadUInt32();
                 }
             }
         }
