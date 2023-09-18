@@ -10,6 +10,8 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
+[assembly: InternalsVisibleTo("Tests")]
+
 namespace V4L2_for_NET
 {
     public abstract class V4L2Struct
@@ -66,6 +68,11 @@ namespace V4L2_for_NET
         public const int NativeSize = 0;
 
         public abstract int GetSize();
+
+        internal int GetStreamPosition()
+        {
+            return (int)ms.Position;
+        }
     }
 
     public class v4l2_rect : V4L2Struct
