@@ -5,6 +5,7 @@ using System.Diagnostics.Metrics;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -13,26 +14,56 @@ namespace V4L2_for_NET
 {
     public abstract class V4L2Struct
     {
-        protected MemoryStream ms;
+        protected UnmanagedMemoryStream ms;
         protected BinaryReader br;
         protected BinaryWriter bw;
+        protected IntPtr selfPtr;
 
-        public abstract byte[] Buffer { get; set; }
+        //public abstract byte[] Buffer { get; set; }
 
-        public V4L2Struct()
+        /// <summary>
+        /// Allocates unmanaged memory for struct
+        /// </summary>
+        public unsafe V4L2Struct()
         {
-            ms = new MemoryStream();
+            IntPtr selfPtr = Marshal.AllocHGlobal(GetSize());
+            ms = new UnmanagedMemoryStream((byte*)selfPtr.ToPointer(), GetSize(), GetSize(), FileAccess.ReadWrite);
             br = new BinaryReader(ms, Encoding.UTF8, true);
-            bw = new BinaryWriter(ms, Encoding.UTF8, true); 
+            bw = new BinaryWriter(ms, Encoding.UTF8, true);
         }
+
+        /// <summary>
+        /// Uses preallocated unmanaged memory from parrent structure
+        /// </summary>
+        /// <param name="ptr">Pointer to memory</param>
+        public unsafe V4L2Struct(byte* ptr)
+        {
+            ms = new UnmanagedMemoryStream(ptr, GetSize(), GetSize(), FileAccess.ReadWrite);
+            br = new BinaryReader(ms, Encoding.UTF8, true);
+            bw = new BinaryWriter(ms, Encoding.UTF8, true);
+        }
+
+        unsafe ~V4L2Struct()
+        {
+            if (selfPtr != IntPtr.Zero)
+            {
+                Marshal.FreeHGlobal(selfPtr);
+            }
+        }
+
+        public abstract void UpdateFromUnmanaged();
+        public abstract IntPtr GetPointer();
 
         protected void Fill(int count)
         {
+            const byte zero = 0;
             for (int i = 0; i < count; i++)
             {
-                ms.WriteByte(0);
+                bw.Write(zero);
             }
         }
+
+        public const int NativeSize = 0;
 
         public abstract int GetSize();
     }
@@ -44,91 +75,94 @@ namespace V4L2_for_NET
         public UInt32 width;
         public UInt32 height;
 
-        public override int GetSize()
+        public unsafe v4l2_rect(byte* ptr) : base(ptr)
         {
-            return 4 + 4 + 4 + 4;
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 + 4 + 4 + 4;
+
+        public override int GetSize()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(left);
-                bw.Write(top);
-                bw.Write(width);
-                bw.Write(height);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                left = br.ReadInt32();
-                top = br.ReadInt32();
-                width = br.ReadUInt32();
-                height = br.ReadUInt32();
-            }
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            left = br.ReadInt32();
+            top = br.ReadInt32();
+            width = br.ReadUInt32();
+            height = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(left);
+            bw.Write(top);
+            bw.Write(width);
+            bw.Write(height);
+            return selfPtr;
         }
     }
+
     public class v4l2_fract : V4L2Struct
     {
         public UInt32 numerator;
         public UInt32 denominator;
 
-        public override int GetSize()
+        public unsafe v4l2_fract(byte* ptr) : base(ptr)
         {
-            return 4 + 4;
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 + 4;
+
+        public override int GetSize()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(numerator);
-                bw.Write(denominator);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                numerator = br.ReadUInt32();
-                denominator = br.ReadUInt32();
-            }
+            return NativeSize;
         }
-    };
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            numerator = br.ReadUInt32();
+            denominator = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(numerator);
+            bw.Write(denominator);
+            return selfPtr;
+        }
+    }
 
     public class v4l2_area : V4L2Struct
     {
         public UInt32 width;
         public UInt32 height;
 
+        public new const int NativeSize = 4 + 4;
+
         public override int GetSize()
         {
-            return 4 + 4;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(width);
-                bw.Write(height);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                width = br.ReadUInt32();
-                height = br.ReadUInt32();
-            }
+            ms.Position = 0;
+            width = br.ReadUInt32();
+            height = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(width);
+            bw.Write(height);
+            return selfPtr;
         }
     };
 
@@ -142,51 +176,49 @@ namespace V4L2_for_NET
         UInt32 device_caps;
         UInt32[] reserved = new UInt32[3];
 
+        public new const int NativeSize = 4 * 6 + 16 + 32 + 32;
+
         public override int GetSize()
         {
-            return 4 * 6 + 16 + 32 + 32;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
+            ms.Position = 0;
+            driver = br.ReadBytes(16);
+            card = br.ReadBytes(32);
+            bus_info = br.ReadBytes(32);
+            version = br.ReadUInt32();
+            capabilities = br.ReadUInt32();
+            device_caps = br.ReadUInt32();
+            reserved[0] = br.ReadUInt32();
+            reserved[1] = br.ReadUInt32();
+            reserved[2] = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            for (int i = 0; i < 16; i++)
             {
-                ms.SetLength(0);
-                for (int i = 0; i < 16; i++)
-                {
-                    bw.Write(driver[i]);
-                }
-                for (int i = 0; i < 32; i++)
-                {
-                    bw.Write(card[i]);
-                }
-                for (int i = 0; i < 32; i++)
-                {
-                    bw.Write(bus_info[i]);
-                }
-                bw.Write(version);
-                bw.Write(capabilities);
-                bw.Write(device_caps);
-                bw.Write(reserved[0]);
-                bw.Write(reserved[1]);
-                bw.Write(reserved[2]);
-                return ms.ToArray();
+                bw.Write(driver[i]);
             }
-            set
+            for (int i = 0; i < 32; i++)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                driver= br.ReadBytes(16);
-                card= br.ReadBytes(32);
-                bus_info = br.ReadBytes(32);
-                version = br.ReadUInt32();
-                capabilities = br.ReadUInt32();
-                device_caps = br.ReadUInt32();
-                reserved[0] = br.ReadUInt32();
-                reserved[1] = br.ReadUInt32();
-                reserved[2] = br.ReadUInt32();
+                bw.Write(card[i]);
             }
+            for (int i = 0; i < 32; i++)
+            {
+                bw.Write(bus_info[i]);
+            }
+            bw.Write(version);
+            bw.Write(capabilities);
+            bw.Write(device_caps);
+            bw.Write(reserved[0]);
+            bw.Write(reserved[1]);
+            bw.Write(reserved[2]);
+            return selfPtr;
         }
     };
 
@@ -217,48 +249,46 @@ namespace V4L2_for_NET
         public v4l2_quantization quantization;
         public v4l2_xfer_func xfer_func;
 
+        public new const int NativeSize = 12 * 4;
+
         public override int GetSize()
         {
-            return 12 * 4;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(width);
-                bw.Write(height);
-                bw.Write(pixelformat);
-                bw.Write((UInt32)field);
-                bw.Write(bytesperline);
-                bw.Write(sizeimage);
-                bw.Write((UInt32)colorspace);
-                bw.Write(priv);
-                bw.Write(flags);
-                bw.Write(union);
-                bw.Write((UInt32)quantization);
-                bw.Write((UInt32)xfer_func);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                width = br.ReadUInt32();
-                height = br.ReadUInt32();
-                pixelformat = br.ReadUInt32();
-                field = (v4l2_field)br.ReadUInt32();
-                bytesperline = br.ReadUInt32();
-                sizeimage = br.ReadUInt32();
-                colorspace = (v4l2_colorspace)br.ReadUInt32();
-                priv = br.ReadUInt32();
-                flags = br.ReadUInt32();
-                union = br.ReadUInt32();
-                quantization = (v4l2_quantization)br.ReadUInt32();
-                xfer_func = (v4l2_xfer_func)br.ReadUInt32();
-            }
+            ms.Position = 0;
+            width = br.ReadUInt32();
+            height = br.ReadUInt32();
+            pixelformat = br.ReadUInt32();
+            field = (v4l2_field)br.ReadUInt32();
+            bytesperline = br.ReadUInt32();
+            sizeimage = br.ReadUInt32();
+            colorspace = (v4l2_colorspace)br.ReadUInt32();
+            priv = br.ReadUInt32();
+            flags = br.ReadUInt32();
+            union = br.ReadUInt32();
+            quantization = (v4l2_quantization)br.ReadUInt32();
+            xfer_func = (v4l2_xfer_func)br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(width);
+            bw.Write(height);
+            bw.Write(pixelformat);
+            bw.Write((UInt32)field);
+            bw.Write(bytesperline);
+            bw.Write(sizeimage);
+            bw.Write((UInt32)colorspace);
+            bw.Write(priv);
+            bw.Write(flags);
+            bw.Write(union);
+            bw.Write((UInt32)quantization);
+            bw.Write((UInt32)xfer_func);
+            return selfPtr;
         }
     };
 
@@ -272,42 +302,40 @@ namespace V4L2_for_NET
         public UInt32 mbus_code;        /* Media bus code    */
         public UInt32[] reserved = new UInt32[3];
 
+        public new const int NativeSize = 4 * 8 + 32;
+
         public override int GetSize()
         {
-            return 4 * 8 + 32;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(index);
-                bw.Write((UInt32)type);
-                bw.Write(flags);
-                bw.Write(description);
-                bw.Write(pixelformat);
-                bw.Write(mbus_code);
-                bw.Write(reserved[0]);
-                bw.Write(reserved[1]);
-                bw.Write(reserved[2]);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                index = br.ReadUInt32();
-                type = (v4l2_buf_type)br.ReadUInt32();
-                flags = br.ReadUInt32();
-                description = br.ReadBytes(32);
-                pixelformat = br.ReadUInt32();
-                mbus_code = br.ReadUInt32();
-                reserved[0] = br.ReadUInt32();
-                reserved[1] = br.ReadUInt32();
-                reserved[2] = br.ReadUInt32();
-            }
+            ms.Position = 0;
+            index = br.ReadUInt32();
+            type = (v4l2_buf_type)br.ReadUInt32();
+            flags = br.ReadUInt32();
+            description = br.ReadBytes(32);
+            pixelformat = br.ReadUInt32();
+            mbus_code = br.ReadUInt32();
+            reserved[0] = br.ReadUInt32();
+            reserved[1] = br.ReadUInt32();
+            reserved[2] = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(index);
+            bw.Write((UInt32)type);
+            bw.Write(flags);
+            bw.Write(description);
+            bw.Write(pixelformat);
+            bw.Write(mbus_code);
+            bw.Write(reserved[0]);
+            bw.Write(reserved[1]);
+            bw.Write(reserved[2]);
+            return selfPtr;
         }
     };
 
@@ -316,28 +344,30 @@ namespace V4L2_for_NET
         public UInt32 width;        /* Frame width [pixel] */
         public UInt32 height;       /* Frame height [pixel] */
 
-        public override int GetSize()
+        public unsafe v4l2_frmsize_discrete(byte* ptr) : base(ptr)
         {
-            return 4 + 4;
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 + 4;
+
+        public override int GetSize()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(width);
-                bw.Write(height);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                width = br.ReadUInt32();
-                height = br.ReadUInt32();
-            }
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            width = br.ReadUInt32();
+            height = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(width);
+            bw.Write(height);
+            return selfPtr;
         }
     }
     public class v4l2_frmsize_stepwise : V4L2Struct
@@ -349,39 +379,40 @@ namespace V4L2_for_NET
         public UInt32 max_height;   /* Maximum frame height [pixel] */
         public UInt32 step_height;  /* Frame height step size [pixel] */
 
+        public unsafe v4l2_frmsize_stepwise(byte* ptr) : base(ptr)
+        {
+        }
+
+        public new const int NativeSize = 4 * 6;
+
         public override int GetSize()
         {
-            return 4 * 6;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(min_width);
-                bw.Write(max_width);
-                bw.Write(step_width);
-                bw.Write(min_height);
-                bw.Write(max_height);
-                bw.Write(step_height);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                min_width = br.ReadUInt32();
-                max_width = br.ReadUInt32();
-                step_width = br.ReadUInt32();
-                min_height = br.ReadUInt32();
-                max_height = br.ReadUInt32();
-                step_height = br.ReadUInt32();
-            }
+            ms.Position = 0;
+            min_width = br.ReadUInt32();
+            max_width = br.ReadUInt32();
+            step_width = br.ReadUInt32();
+            min_height = br.ReadUInt32();
+            max_height = br.ReadUInt32();
+            step_height = br.ReadUInt32();
         }
-    };
 
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(min_width);
+            bw.Write(max_width);
+            bw.Write(step_width);
+            bw.Write(min_height);
+            bw.Write(max_height);
+            bw.Write(step_height);
+            return selfPtr;
+        }
+    }
     public class v4l2_frmsizeenum : V4L2Struct
     {
         public UInt32 index;        /* Frame size number */
@@ -389,106 +420,120 @@ namespace V4L2_for_NET
         public v4l2_frmsizetypes type;     /* Frame size type the device supports. */
 
         //union {					/* Frame size */
-        public v4l2_frmsize_discrete discrete = new v4l2_frmsize_discrete();
-        public v4l2_frmsize_stepwise stepwise = new v4l2_frmsize_stepwise();
-        int u_size { get { return Math.Max(discrete.GetSize(), stepwise.GetSize()); } }
+        public v4l2_frmsize_discrete discrete;
+        public v4l2_frmsize_stepwise stepwise;
+        const int u_size = (v4l2_frmsize_discrete.NativeSize > v4l2_frmsize_stepwise.NativeSize) ? v4l2_frmsize_discrete.NativeSize : v4l2_frmsize_stepwise.NativeSize;
         //};
 
         public UInt32[] reserved = new UInt32[2];			/* Reserved space for future use */
 
-        public override int GetSize()
+        public unsafe v4l2_frmsizeenum() : base()
         {
-            return 4 * 3 + u_size;
+            ms.Position = 4 * 3; // Skip 3 UInt32s
+            discrete = new v4l2_frmsize_discrete(ms.PositionPointer);
+            ms.Position = 4 * 3; // Skip 3 UInt32s
+            stepwise = new v4l2_frmsize_stepwise(ms.PositionPointer);
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 * 5 + u_size;
+
+        public override int GetSize()
         {
-            get
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            index = br.ReadUInt32();
+            pixel_format = br.ReadUInt32();
+            type = (v4l2_frmsizetypes)br.ReadUInt32();
+            switch (type)
             {
-                ms.SetLength(0);
-                bw.Write(index);
-                bw.Write(pixel_format);
-                bw.Write((UInt32)type);
-                switch(type)
-                {
-                    case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE:
-                        {
-                            bw.Write(discrete.Buffer);
-                            Fill(u_size - discrete.GetSize());
-                            break;
-                        }
-                    case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_CONTINUOUS:
-                    case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_STEPWISE:
-                        {
-                            bw.Write(stepwise.Buffer);
-                            Fill(u_size - stepwise.GetSize());
-                            break;
-                        }
-                }
-                bw.Write(reserved[0]);
-                bw.Write(reserved[1]);
-                return ms.ToArray();
+                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE:
+                    {
+                        discrete.UpdateFromUnmanaged();
+                        break;
+                    }
+                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_CONTINUOUS:
+                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_STEPWISE:
+                    {
+                        stepwise.UpdateFromUnmanaged();
+                        break;
+                    }
             }
-            set
+            ms.Position += u_size;
+            reserved[0] = br.ReadUInt32();
+            reserved[1] = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(index);
+            bw.Write(pixel_format);
+            bw.Write((UInt32)type);
+            switch (type)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                index = br.ReadUInt32();
-                pixel_format = br.ReadUInt32();
-                type = (v4l2_frmsizetypes)br.ReadUInt32();
-                switch (type)
-                {
-                    case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE:
-                        {
-                            discrete.Buffer = br.ReadBytes(discrete.GetSize());
-                            ms.Position += u_size - discrete.GetSize();
-                            break;
-                        }
-                    case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_CONTINUOUS:
-                    case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_STEPWISE:
-                        {
-                            stepwise.Buffer = br.ReadBytes(stepwise.GetSize());
-                            ms.Position += u_size - stepwise.GetSize();
-                            break;
-                        }
-                }
-                reserved[0] = br.ReadUInt32();
-                reserved[1] = br.ReadUInt32();
+                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE:
+                    {
+                        discrete.GetPointer();
+                        break;
+                    }
+                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_CONTINUOUS:
+                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_STEPWISE:
+                    {
+                        stepwise.GetPointer();
+                        break;
+                    }
             }
+            ms.Position += u_size;
+            bw.Write(reserved[0]);
+            bw.Write(reserved[1]);
+            return selfPtr;
         }
     };
 
     public class v4l2_frmival_stepwise : V4L2Struct
     {
-        public v4l2_fract min = new v4l2_fract();       /* Minimum frame interval [s] */
-        public v4l2_fract max = new v4l2_fract();       /* Maximum frame interval [s] */
-        public v4l2_fract step = new v4l2_fract();      /* Frame interval step size [s] */
+        public v4l2_fract min;       /* Minimum frame interval [s] */
+        public v4l2_fract max;       /* Maximum frame interval [s] */
+        public v4l2_fract step;      /* Frame interval step size [s] */
+
+        public unsafe v4l2_frmival_stepwise(byte* ptr) : base(ptr)
+        {
+            ms.Position = 0;
+            min = new v4l2_fract(ms.PositionPointer);
+            ms.Position = min.GetSize();
+            max = new v4l2_fract(ms.PositionPointer);
+            ms.Position = min.GetSize() + max.GetSize();
+            step = new v4l2_fract(ms.PositionPointer);
+        }
+
+        public new const int NativeSize = v4l2_fract.NativeSize * 3;
 
         public override int GetSize()
         {
-            return min.GetSize() * 3;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(min.Buffer);
-                bw.Write(max.Buffer);
-                bw.Write(step.Buffer);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                min.Buffer = br.ReadBytes(min.GetSize());
-                max.Buffer = br.ReadBytes(max.GetSize());
-                step.Buffer = br.ReadBytes(step.GetSize());
-            }
+            ms.Position = 0;
+            min.UpdateFromUnmanaged();
+            max.UpdateFromUnmanaged();
+            step.UpdateFromUnmanaged();
+            ms.Position += v4l2_fract.NativeSize * 3;
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            min.GetPointer();
+            max.GetPointer();
+            step.GetPointer();
+            ms.Position += v4l2_fract.NativeSize * 3;
+            return selfPtr;
         }
     };
 
@@ -501,77 +546,81 @@ namespace V4L2_for_NET
         public v4l2_frmivaltypes type;     /* Frame interval type the device supports. */
 
         //union {					/* Frame interval */
-        public v4l2_fract discrete = new v4l2_fract();
-        public v4l2_frmival_stepwise stepwise = new v4l2_frmival_stepwise();
-        int u_size { get { return Math.Max(discrete.GetSize(), stepwise.GetSize()); } }
+        public v4l2_fract discrete;
+        public v4l2_frmival_stepwise stepwise;
+        const int u_size = (v4l2_fract.NativeSize > v4l2_frmival_stepwise.NativeSize) ? v4l2_fract.NativeSize : v4l2_frmival_stepwise.NativeSize;
         //};
 
         public UInt32[] reserved = new UInt32[2];			/* Reserved space for future use */
 
-        public override int GetSize()
+        public unsafe v4l2_frmivalenum() : base()
         {
-            return 4 * 5 + u_size;
+            ms.Position = 4 * 5;
+            discrete = new v4l2_fract(ms.PositionPointer);
+            ms.Position = 4 * 5;
+            stepwise = new v4l2_frmival_stepwise(ms.PositionPointer);
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 * 7 + u_size;
+
+        public override int GetSize()
         {
-            get
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            index = br.ReadUInt32();
+            pixel_format = br.ReadUInt32();
+            width = br.ReadUInt32();
+            height = br.ReadUInt32();
+            type = (v4l2_frmivaltypes)br.ReadUInt32();
+            switch (type)
             {
-                ms.SetLength(0);
-                bw.Write(index);
-                bw.Write(pixel_format);
-                bw.Write(width);
-                bw.Write(height);
-                bw.Write((UInt32)type);
-                switch (type)
-                {
-                    case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE:
-                        {
-                            bw.Write(discrete.Buffer);
-                            Fill(u_size - discrete.GetSize());
-                            break;
-                        }
-                    case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_CONTINUOUS:
-                    case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_STEPWISE:
-                        {
-                            bw.Write(stepwise.Buffer);
-                            Fill(u_size - stepwise.GetSize());
-                            break;
-                        }
-                }
-                bw.Write(reserved[0]);
-                bw.Write(reserved[1]);
-                return ms.ToArray();
+                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE:
+                    {
+                        discrete.UpdateFromUnmanaged();
+                        break;
+                    }
+                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_CONTINUOUS:
+                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_STEPWISE:
+                    {
+                        stepwise.UpdateFromUnmanaged();
+                        break;
+                    }
             }
-            set
+            ms.Position += u_size;
+            reserved[0] = br.ReadUInt32();
+            reserved[1] = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(index);
+            bw.Write(pixel_format);
+            bw.Write(width);
+            bw.Write(height);
+            bw.Write((UInt32)type);
+            switch (type)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                index = br.ReadUInt32();
-                pixel_format = br.ReadUInt32();
-                width = br.ReadUInt32();
-                height = br.ReadUInt32();
-                type = (v4l2_frmivaltypes)br.ReadUInt32();
-                switch (type)
-                {
-                    case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE:
-                        {
-                            discrete.Buffer = br.ReadBytes(discrete.GetSize());
-                            ms.Position += u_size - discrete.GetSize();
-                            break;
-                        }
-                    case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_CONTINUOUS:
-                    case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_STEPWISE:
-                        {
-                            stepwise.Buffer = br.ReadBytes(stepwise.GetSize());
-                            ms.Position += u_size - stepwise.GetSize();
-                            break;
-                        }
-                }
-                reserved[0] = br.ReadUInt32();
-                reserved[1] = br.ReadUInt32();
+                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE:
+                    {
+                        discrete.GetPointer();
+                        break;
+                    }
+                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_CONTINUOUS:
+                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_STEPWISE:
+                    {
+                        stepwise.GetPointer();
+                        break;
+                    }
             }
+            ms.Position += u_size;
+            bw.Write(reserved[0]);
+            bw.Write(reserved[1]);
+            return selfPtr;
         }
     };
 
@@ -585,47 +634,48 @@ namespace V4L2_for_NET
         public byte hours;
         public byte[] userbits = new byte[4];
 
+        public unsafe v4l2_timecode(byte* ptr) : base(ptr)
+        {
+        }
+
+        public new const int NativeSize = 4 * 4;
+
         public override int GetSize()
         {
-            return 4 * 4;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(type);
-                bw.Write(flags);
-                bw.Write(frames);
-                bw.Write(seconds);
-                bw.Write(minutes);
-                bw.Write(hours);
-                bw.Write(userbits[0]);
-                bw.Write(userbits[1]);
-                bw.Write(userbits[2]);
-                bw.Write(userbits[3]);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                type = br.ReadUInt32();
-                flags = br.ReadUInt32();
-                frames = br.ReadByte();
-                seconds = br.ReadByte();
-                minutes = br.ReadByte();
-                hours = br.ReadByte();
-                userbits[0] = br.ReadByte();
-                userbits[1] = br.ReadByte();
-                userbits[2] = br.ReadByte();
-                userbits[3] = br.ReadByte();
-            }
+            ms.Position = 0;
+            type = br.ReadUInt32();
+            flags = br.ReadUInt32();
+            frames = br.ReadByte();
+            seconds = br.ReadByte();
+            minutes = br.ReadByte();
+            hours = br.ReadByte();
+            userbits[0] = br.ReadByte();
+            userbits[1] = br.ReadByte();
+            userbits[2] = br.ReadByte();
+            userbits[3] = br.ReadByte();
         }
-    };
 
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(type);
+            bw.Write(flags);
+            bw.Write(frames);
+            bw.Write(seconds);
+            bw.Write(minutes);
+            bw.Write(hours);
+            bw.Write(userbits[0]);
+            bw.Write(userbits[1]);
+            bw.Write(userbits[2]);
+            bw.Write(userbits[3]);
+            return selfPtr;
+        }
+    }
     public class v4l2_jpegcompression : V4L2Struct
     {
         public int quality;
@@ -658,44 +708,42 @@ namespace V4L2_for_NET
         /// </summary>
         public UInt32 jpeg_markers;
 
+        public new const int NativeSize = 4 * 5 + 120;
+
         public override int GetSize()
         {
-            return 4 * 5 + 120;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
+            ms.Position = 0;
+            quality = br.ReadInt32();
+            APPn = br.ReadInt32();
+            APP_len = br.ReadInt32();
+            APP_data = br.ReadBytes(60);
+            COM_len = br.ReadInt32();
+            COM_data = br.ReadBytes(60);
+            jpeg_markers = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(quality);
+            bw.Write(APPn);
+            bw.Write(APP_len);
+            for (int i = 0; i < 60; i++)
             {
-                ms.SetLength(0);
-                bw.Write(quality);
-                bw.Write(APPn);
-                bw.Write(APP_len);
-                for(int i = 0; i < 60; i++)
-                {
-                    bw.Write(APP_data[i]);
-                }
-                bw.Write(COM_len);
-                for (int i = 0; i < 60; i++)
-                {
-                    bw.Write(COM_data[i]);
-                }
-                bw.Write(jpeg_markers);
-                return ms.ToArray();
+                bw.Write(APP_data[i]);
             }
-            set
+            bw.Write(COM_len);
+            for (int i = 0; i < 60; i++)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                quality = br.ReadInt32();
-                APPn = br.ReadInt32();
-                APP_len = br.ReadInt32();
-                APP_data = br.ReadBytes(60);
-                COM_len = br.ReadInt32();
-                COM_data = br.ReadBytes(60);
-                jpeg_markers = br.ReadUInt32();
+                bw.Write(COM_data[i]);
             }
+            bw.Write(jpeg_markers);
+            return selfPtr;
         }
     };
 
@@ -708,40 +756,38 @@ namespace V4L2_for_NET
         public byte flags;
         public byte[] reserved = new byte[3];
 
+        public new const int NativeSize = 4 * 5;
+
         public override int GetSize()
         {
-            return 4 * 5;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(count);
-                bw.Write((UInt32)type);
-                bw.Write((UInt32)memory);
-                bw.Write(capabilities);
-                bw.Write(flags);
-                bw.Write(reserved[0]);
-                bw.Write(reserved[1]);
-                bw.Write(reserved[2]);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                count = br.ReadUInt32();
-                type = (v4l2_buf_type)br.ReadUInt32();
-                memory = (v4l2_memory)br.ReadUInt32();
-                capabilities = br.ReadUInt32();
-                flags = br.ReadByte();
-                reserved[0] = br.ReadByte();
-                reserved[1] = br.ReadByte();
-                reserved[2] = br.ReadByte();
-            }
+            ms.Position = 0;
+            count = br.ReadUInt32();
+            type = (v4l2_buf_type)br.ReadUInt32();
+            memory = (v4l2_memory)br.ReadUInt32();
+            capabilities = br.ReadUInt32();
+            flags = br.ReadByte();
+            reserved[0] = br.ReadByte();
+            reserved[1] = br.ReadByte();
+            reserved[2] = br.ReadByte();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(count);
+            bw.Write((UInt32)type);
+            bw.Write((UInt32)memory);
+            bw.Write(capabilities);
+            bw.Write(flags);
+            bw.Write(reserved[0]);
+            bw.Write(reserved[1]);
+            bw.Write(reserved[2]);
+            return selfPtr;
         }
     };
 
@@ -796,49 +842,49 @@ namespace V4L2_for_NET
         public UInt32 data_offset;
         public UInt32[] reserved = new UInt32[11];
 
-        public v4l2_plane() : base()
+        public unsafe v4l2_plane(byte* ptr) : base(ptr)
         {
             u_ms = new MemoryStream(8);
             u_bw = new BinaryWriter(u_ms);
             u_br = new BinaryReader(u_ms);
         }
 
+        public new const int NativeSize = 4 * 16;
+
         public override int GetSize()
         {
-            return 4 * 16;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public const int StructSize = 4 * 16;
+
+        public override void UpdateFromUnmanaged()
         {
-            get
+            ms.Position = 0;
+            bytesused = br.ReadUInt32();
+            length = br.ReadUInt32();
+            u_ms.Position = 0;
+            u_ms.Write(br.ReadBytes(8));
+            data_offset = br.ReadUInt32();
+            for (int i = 0; i < 11; i++)
             {
-                ms.SetLength(0);
-                bw.Write(bytesused);
-                bw.Write(length);
-                u_ms.Position = 0;
-                u_ms.CopyTo(ms);
-                bw.Write(data_offset);
-                for (int i = 0; i < 11; i++)
-                {
-                    bw.Write(reserved[i]);
-                }
-                return ms.ToArray();
+                reserved[i] = br.ReadUInt32();
             }
-            set
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(bytesused);
+            bw.Write(length);
+            u_ms.Position = 0;
+            u_ms.CopyTo(ms);
+            bw.Write(data_offset);
+            for (int i = 0; i < 11; i++)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                bytesused = br.ReadUInt32();
-                length = br.ReadUInt32();
-                u_ms.Position = 0;
-                u_ms.Write(br.ReadBytes(8));
-                data_offset = br.ReadUInt32();
-                for (int i = 0; i < 11; i++)
-                {
-                    reserved[i] = br.ReadUInt32();
-                }
+                bw.Write(reserved[i]);
             }
+            return selfPtr;
         }
     };
 
@@ -847,28 +893,30 @@ namespace V4L2_for_NET
         public long tv_sec;
         public long tv_usec;
 
-        public override int GetSize()
+        public unsafe timeval(byte* ptr) : base(ptr)
         {
-            return 8 + 8;
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 8 + 8;
+
+        public override int GetSize()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(tv_sec);
-                bw.Write(tv_usec);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                tv_sec = br.ReadInt64();
-                tv_usec = br.ReadInt64();
-            }
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            tv_sec = br.ReadInt64();
+            tv_usec = br.ReadInt64();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(tv_sec);
+            bw.Write(tv_usec);
+            return selfPtr;
         }
     }
 
@@ -879,18 +927,18 @@ namespace V4L2_for_NET
         public UInt32 bytesused;
         public UInt32 flags;
         public UInt32 field;
-        public timeval timestamp = new timeval();
-        public v4l2_timecode timecode = new v4l2_timecode();
+        public timeval timestamp;
+        public v4l2_timecode timecode;
         public UInt32 sequence;
 
         /* memory location */
         public v4l2_memory memory;
         //union {
-            public UInt32 offset;
-            public UInt64 userptr;
-            // as void*
-            public v4l2_plane[] planes = new v4l2_plane[(int)VIDEO_MAX.PLANES];
-            public Int32 fd;
+        public UInt32 offset;
+        public UInt64 userptr;
+        // as void*
+        public v4l2_plane[] planes = new v4l2_plane[(int)VIDEO_MAX.PLANES];
+        public Int32 fd;
         //} m;
         public UInt32 length;
         public UInt32 reserved2;
@@ -898,9 +946,19 @@ namespace V4L2_for_NET
 
         IntPtr planes_data;
 
-        public v4l2_buffer() : base()
+        public unsafe v4l2_buffer() : base()
         {
-            planes_data = Marshal.AllocHGlobal(planes[0].GetSize() * (int)VIDEO_MAX.PLANES);
+            ms.Position = 4 * 5;
+            timestamp = new timeval(ms.PositionPointer);
+            ms.Position = 4 * 5 + timestamp.GetSize();
+            timecode = new v4l2_timecode(ms.PositionPointer);
+
+            planes_data = Marshal.AllocHGlobal(v4l2_plane.StructSize * (int)VIDEO_MAX.PLANES);
+            byte* planes_ptr = (byte*)planes_data.ToPointer();
+            for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
+            {
+                planes[i] = new v4l2_plane(planes_ptr + (v4l2_plane.StructSize * i));
+            }
         }
 
         ~v4l2_buffer()
@@ -908,126 +966,123 @@ namespace V4L2_for_NET
             Marshal.FreeHGlobal(planes_data);
         }
 
+        public new const int NativeSize = 4 * 12 + timeval.NativeSize + v4l2_timecode.NativeSize;
+
         public override int GetSize()
         {
-            return 4 * 11 + timestamp.GetSize() + timecode.GetSize();
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
+            ms.Position = 0;
+            index = br.ReadUInt32();
+            type = (v4l2_buf_type)br.ReadUInt32();
+            bytesused = br.ReadUInt32();
+            flags = br.ReadUInt32();
+            field = br.ReadUInt32();
+            timestamp.UpdateFromUnmanaged();
+            timecode.UpdateFromUnmanaged();
+            ms.Position += timestamp.GetSize() + timecode.GetSize();
+            sequence = br.ReadUInt32();
+            memory = (v4l2_memory)br.ReadUInt32();
+            if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
             {
-                ms.SetLength(0);
-                bw.Write(index);
-                bw.Write((UInt32)type);
-                bw.Write(bytesused);
-                bw.Write(flags);
-                bw.Write(field);
-                bw.Write(timestamp.Buffer);
-                bw.Write(timecode.Buffer);
-                bw.Write(sequence);
-                bw.Write((UInt32)memory);
-                if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-                {
-                    for (int i =0; i<length; i++)
-                    {
-                        Marshal.Copy(planes[i].Buffer, 0, planes_data + (planes[i].GetSize() * i), planes[i].GetSize());
-                    }
-                    bw.Write(planes_data);
-                }
-                else
-                {
-                    switch (memory)
-                    {
-                        case v4l2_memory.V4L2_MEMORY_MMAP:
-                            {
-                                bw.Write(offset);
-                                Fill(4);
-                                break;
-                            }
-                        case v4l2_memory.V4L2_MEMORY_USERPTR:
-                            {
-                                bw.Write(userptr);
-                                break;
-                            }
-                        case v4l2_memory.V4L2_MEMORY_DMABUF:
-                            {
-                                bw.Write(fd);
-                                Fill(4);
-                                break;
-                            }
-                        default:
-                            {
-                                throw new NotSupportedException();
-                            }
-                    }
-                }
-                bw.Write(length);
-                bw.Write(reserved2);
-                bw.Write(request_fd);
-                return ms.ToArray();
+                // Is it something to be done?
             }
-            set
+            else
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                index = br.ReadUInt32();
-                type = (v4l2_buf_type)br.ReadUInt32();
-                index = br.ReadUInt32();
-                bytesused = br.ReadUInt32();
-                flags = br.ReadUInt32();
-                field = br.ReadUInt32();
-                timestamp.Buffer = br.ReadBytes(timestamp.GetSize());
-                timecode.Buffer = br.ReadBytes(timecode.GetSize());
-                sequence = br.ReadUInt32();
-                memory = (v4l2_memory)br.ReadUInt32();
-                if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+                switch (memory)
                 {
-                    // Is it something to be done?
+                    case v4l2_memory.V4L2_MEMORY_MMAP:
+                        {
+                            offset = br.ReadUInt32();
+                            ms.Position += 4;
+                            break;
+                        }
+                    case v4l2_memory.V4L2_MEMORY_USERPTR:
+                        {
+                            userptr = br.ReadUInt64();
+                            break;
+                        }
+                    case v4l2_memory.V4L2_MEMORY_DMABUF:
+                        {
+                            fd = br.ReadInt32();
+                            ms.Position += 4;
+                            break;
+                        }
+                    default:
+                        {
+                            throw new NotSupportedException();
+                        }
                 }
-                else
-                {
-                    switch(memory)
-                    {
-                        case v4l2_memory.V4L2_MEMORY_MMAP:
-                            {
-                                offset = br.ReadUInt32();
-                                ms.Position += 4;
-                                break;
-                            }
-                        case v4l2_memory.V4L2_MEMORY_USERPTR:
-                            {
-                                userptr = br.ReadUInt64();
-                                break;
-                            }
-                        case v4l2_memory.V4L2_MEMORY_DMABUF:
-                            {
-                                fd = br.ReadInt32();
-                                ms.Position += 4;
-                                break;
-                            }
-                        default:
-                            {
-                                throw new NotSupportedException();
-                            }
-                    }
-                }
-                length = br.ReadUInt32();
-                reserved2 = br.ReadUInt32();
-                request_fd = br.ReadInt32();
+            }
+            length = br.ReadUInt32();
+            reserved2 = br.ReadUInt32();
+            request_fd = br.ReadInt32();
 
-                if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+            if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+            {
+                // Now we can read planes if needed
+                for (int i = 0; i < length; i++)
                 {
-                    // Now we can read planes if needed
-                    for (int i = 0; i < length; i++)
-                    {
-                        byte[] buf = new byte[planes[i].GetSize()];
-                        Marshal.Copy(planes_data, buf, 0, planes[i].GetSize());
-                        planes[i].Buffer = buf;
-                    }
+                    planes[i].UpdateFromUnmanaged();
                 }
             }
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(index);
+            bw.Write((UInt32)type);
+            bw.Write(bytesused);
+            bw.Write(flags);
+            bw.Write(field);
+            timestamp.GetPointer();
+            timecode.GetPointer();
+            ms.Position += timestamp.GetSize() + timecode.GetSize();
+            bw.Write(sequence);
+            bw.Write((UInt32)memory);
+            if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+            {
+                for (int i = 0; i < length; i++)
+                {
+                    planes[i].GetPointer();
+                }
+                bw.Write(planes_data);
+            }
+            else
+            {
+                switch (memory)
+                {
+                    case v4l2_memory.V4L2_MEMORY_MMAP:
+                        {
+                            bw.Write(offset);
+                            Fill(4);
+                            break;
+                        }
+                    case v4l2_memory.V4L2_MEMORY_USERPTR:
+                        {
+                            bw.Write(userptr);
+                            break;
+                        }
+                    case v4l2_memory.V4L2_MEMORY_DMABUF:
+                        {
+                            bw.Write(fd);
+                            Fill(4);
+                            break;
+                        }
+                    default:
+                        {
+                            throw new NotSupportedException();
+                        }
+                }
+            }
+            bw.Write(length);
+            bw.Write(reserved2);
+            bw.Write(request_fd);
+            return selfPtr;
         }
     };
 
@@ -1040,42 +1095,40 @@ namespace V4L2_for_NET
         public Int32 fd;
         public UInt32[] reserved = new UInt32[11];
 
+        public new const int NativeSize = 4 * 16;
+
         public override int GetSize()
         {
-            return 4 * 16;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
+            ms.Position = 0;
+            type = (v4l2_buf_type)br.ReadUInt32();
+            index = br.ReadUInt32();
+            plane = br.ReadUInt32();
+            flags = br.ReadUInt32();
+            fd = br.ReadInt32();
+            for (int i = 0; i < 11; i++)
             {
-                ms.SetLength(0);
-                bw.Write((UInt32)type);
-                bw.Write(index);
-                bw.Write(plane);
-                bw.Write(flags);
-                bw.Write(fd);
-                for (int i = 0; i < 11; i++)
-                {
-                    bw.Write(reserved[i]);
-                }
-                return ms.ToArray();
+                reserved[i] = br.ReadUInt32();
             }
-            set
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write((UInt32)type);
+            bw.Write(index);
+            bw.Write(plane);
+            bw.Write(flags);
+            bw.Write(fd);
+            for (int i = 0; i < 11; i++)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                type = (v4l2_buf_type)br.ReadUInt32();
-                index = br.ReadUInt32();
-                plane = br.ReadUInt32();
-                flags = br.ReadUInt32();
-                fd = br.ReadInt32();
-                for (int i = 0; i < 11; i++)
-                {
-                    reserved[i] = br.ReadUInt32();
-                }
+                bw.Write(reserved[i]);
             }
+            return selfPtr;
         }
     };
 
@@ -1086,64 +1139,62 @@ namespace V4L2_for_NET
         /* FIXME: in theory we should pass something like PCI device + memory
          * region + offset instead of some physical address */
         public IntPtr base_ptr; // void*
-	    //struct {
-            public UInt32 width;
-            public UInt32 height;
-            public UInt32 pixelformat;
-            public v4l2_field field;
-            public UInt32 bytesperline; /* for padding, zero if unused */
-            public UInt32 sizeimage;
-            public v4l2_colorspace colorspace;
-            public UInt32 priv;     /* reserved field, set to 0 */
+                                //struct {
+        public UInt32 width;
+        public UInt32 height;
+        public UInt32 pixelformat;
+        public v4l2_field field;
+        public UInt32 bytesperline; /* for padding, zero if unused */
+        public UInt32 sizeimage;
+        public v4l2_colorspace colorspace;
+        public UInt32 priv;     /* reserved field, set to 0 */
         //   } fmt;
+
+        public new const int NativeSize = 4 * 12;
 
         public override int GetSize()
         {
-            return 4 * 12;
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(capability);
-                bw.Write(flags);
-                bw.Write(base_ptr);
-                bw.Write(width);
-                bw.Write(height);
-                bw.Write(pixelformat);
-                bw.Write((UInt32)field);
-                bw.Write(bytesperline);
-                bw.Write(sizeimage);
-                bw.Write((UInt32)colorspace);
-                bw.Write(priv);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                capability = br.ReadUInt32();
-                flags = br.ReadUInt32();
-                base_ptr = (IntPtr)br.ReadInt64();
-                width = br.ReadUInt32();
-                height = br.ReadUInt32();
-                pixelformat = br.ReadUInt32();
-                field = (v4l2_field)br.ReadUInt32();
-                bytesperline = br.ReadUInt32();
-                sizeimage = br.ReadUInt32();
-                colorspace = (v4l2_colorspace)br.ReadUInt32();
-                priv = br.ReadUInt32();
-            }
+            ms.Position = 0;
+            capability = br.ReadUInt32();
+            flags = br.ReadUInt32();
+            base_ptr = (IntPtr)br.ReadInt64();
+            width = br.ReadUInt32();
+            height = br.ReadUInt32();
+            pixelformat = br.ReadUInt32();
+            field = (v4l2_field)br.ReadUInt32();
+            bytesperline = br.ReadUInt32();
+            sizeimage = br.ReadUInt32();
+            colorspace = (v4l2_colorspace)br.ReadUInt32();
+            priv = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(capability);
+            bw.Write(flags);
+            bw.Write(base_ptr);
+            bw.Write(width);
+            bw.Write(height);
+            bw.Write(pixelformat);
+            bw.Write((UInt32)field);
+            bw.Write(bytesperline);
+            bw.Write(sizeimage);
+            bw.Write((UInt32)colorspace);
+            bw.Write(priv);
+            return selfPtr;
         }
     };
 
     //public class v4l2_clip
     //{
     //    v4l2_rect        c;
-	   // v4l2_clip    __user* next;
+    // v4l2_clip    __user* next;
     //};
 
     //public class v4l2_window
@@ -1152,9 +1203,9 @@ namespace V4L2_for_NET
     //    v4l2_field field;
     //    UInt32 chromakey;
     //    v4l2_clip    *clips;
-	   // UInt32 clipcount;
+    // UInt32 clipcount;
     //    UIntPtr bitmap;
-	   // byte global_alpha;
+    // byte global_alpha;
     //};
 
     public class v4l2_captureparm : V4L2Struct
@@ -1170,7 +1221,7 @@ namespace V4L2_for_NET
         /// <summary>
         /// Time per frame in seconds
         /// </summary>
-        public v4l2_fract timeperframe = new v4l2_fract();
+        public v4l2_fract timeperframe;
         /// <summary>
         /// Driver-specific extensions
         /// </summary>
@@ -1181,42 +1232,48 @@ namespace V4L2_for_NET
         public UInt32 readbuffers;
         public UInt32[] reserved = new UInt32[4];
 
-        public override int GetSize()
+        public unsafe v4l2_captureparm() : base()
         {
-            return 4 * 8 + timeperframe.GetSize();
+            ms.Position = 8;
+            timeperframe = new v4l2_fract(ms.PositionPointer);
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 * 8 + v4l2_fract.NativeSize;
+
+        public override int GetSize()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(capability);
-                bw.Write(capturemode);
-                bw.Write(timeperframe.Buffer);
-                bw.Write(extendedmode);
-                bw.Write(readbuffers);
-                bw.Write(reserved[0]);
-                bw.Write(reserved[1]);
-                bw.Write(reserved[2]);
-                bw.Write(reserved[3]);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                capability = br.ReadUInt32();
-                capturemode = br.ReadUInt32();
-                timeperframe.Buffer = br.ReadBytes(timeperframe.GetSize());
-                extendedmode = br.ReadUInt32();
-                readbuffers = br.ReadUInt32();
-                reserved[0] = br.ReadUInt32();
-                reserved[1] = br.ReadUInt32();
-                reserved[2] = br.ReadUInt32();
-                reserved[3] = br.ReadUInt32();
-            }
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            capability = br.ReadUInt32();
+            capturemode = br.ReadUInt32();
+            timeperframe.UpdateFromUnmanaged();
+            ms.Position += timeperframe.GetSize();
+            extendedmode = br.ReadUInt32();
+            readbuffers = br.ReadUInt32();
+            reserved[0] = br.ReadUInt32();
+            reserved[1] = br.ReadUInt32();
+            reserved[2] = br.ReadUInt32();
+            reserved[3] = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(capability);
+            bw.Write(capturemode);
+            timeperframe.GetPointer();
+            ms.Position += timeperframe.GetSize();
+            bw.Write(extendedmode);
+            bw.Write(readbuffers);
+            bw.Write(reserved[0]);
+            bw.Write(reserved[1]);
+            bw.Write(reserved[2]);
+            bw.Write(reserved[3]);
+            return selfPtr;
         }
     };
 
@@ -1233,7 +1290,7 @@ namespace V4L2_for_NET
         /// <summary>
         /// Time per frame in seconds
         /// </summary>
-        public v4l2_fract timeperframe = new v4l2_fract();
+        public v4l2_fract timeperframe;
         /// <summary>
         /// Driver-specific extensions
         /// </summary>
@@ -1244,108 +1301,130 @@ namespace V4L2_for_NET
         public UInt32 writebuffers;
         public UInt32[] reserved = new UInt32[4];
 
-        public override int GetSize()
+        public unsafe v4l2_outputparm() : base()
         {
-            return 4 * 8 + timeperframe.GetSize();
+            ms.Position = 8;
+            timeperframe = new v4l2_fract(ms.PositionPointer);
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 * 8 + v4l2_fract.NativeSize;
+
+        public override int GetSize()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write(capability);
-                bw.Write(outputmode);
-                bw.Write(timeperframe.Buffer);
-                bw.Write(extendedmode);
-                bw.Write(writebuffers);
-                bw.Write(reserved[0]);
-                bw.Write(reserved[1]);
-                bw.Write(reserved[2]);
-                bw.Write(reserved[3]);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                capability = br.ReadUInt32();
-                outputmode = br.ReadUInt32();
-                timeperframe.Buffer = br.ReadBytes(timeperframe.GetSize());
-                extendedmode = br.ReadUInt32();
-                writebuffers = br.ReadUInt32();
-                reserved[0] = br.ReadUInt32();
-                reserved[1] = br.ReadUInt32();
-                reserved[2] = br.ReadUInt32();
-                reserved[3] = br.ReadUInt32();
-            }
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            capability = br.ReadUInt32();
+            outputmode = br.ReadUInt32();
+            timeperframe.UpdateFromUnmanaged();
+            ms.Position += timeperframe.GetSize();
+            extendedmode = br.ReadUInt32();
+            writebuffers = br.ReadUInt32();
+            reserved[0] = br.ReadUInt32();
+            reserved[1] = br.ReadUInt32();
+            reserved[2] = br.ReadUInt32();
+            reserved[3] = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(capability);
+            bw.Write(outputmode);
+            timeperframe.GetPointer();
+            ms.Position += timeperframe.GetSize();
+            bw.Write(extendedmode);
+            bw.Write(writebuffers);
+            bw.Write(reserved[0]);
+            bw.Write(reserved[1]);
+            bw.Write(reserved[2]);
+            bw.Write(reserved[3]);
+            return selfPtr;
         }
     };
 
     public class v4l2_cropcap : V4L2Struct
     {
         public v4l2_buf_type type;
-        public v4l2_rect bounds = new v4l2_rect();
-        public v4l2_rect defrect = new v4l2_rect();
-        public v4l2_fract pixelaspect = new v4l2_fract();
+        public v4l2_rect bounds;
+        public v4l2_rect defrect;
+        public v4l2_fract pixelaspect;
+
+        public unsafe v4l2_cropcap() : base()
+        {
+            ms.Position = 4;
+            bounds = new v4l2_rect(ms.PositionPointer);
+            ms.Position = 4 + bounds.GetSize();
+            defrect = new v4l2_rect(ms.PositionPointer);
+            ms.Position = 4 + bounds.GetSize() + defrect.GetSize();
+            pixelaspect = new v4l2_fract(ms.PositionPointer);
+        }
+
+        public new const int NativeSize = 4 + (v4l2_rect.NativeSize * 2) + v4l2_fract.NativeSize;
 
         public override int GetSize()
         {
-            return 4 + (bounds.GetSize() * 2) + pixelaspect.GetSize();
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write((UInt32)type);
-                bw.Write(bounds.Buffer);
-                bw.Write(defrect.Buffer);
-                bw.Write(pixelaspect.Buffer);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                type = (v4l2_buf_type)br.ReadUInt32();
-                bounds.Buffer = br.ReadBytes(bounds.GetSize());
-                defrect.Buffer = br.ReadBytes(defrect.GetSize());
-                pixelaspect.Buffer = br.ReadBytes(pixelaspect.GetSize());
-            }
+            ms.Position = 0;
+            type = (v4l2_buf_type)br.ReadUInt32();
+            bounds.UpdateFromUnmanaged();
+            defrect.UpdateFromUnmanaged();
+            pixelaspect.UpdateFromUnmanaged();
+            ms.Position += (v4l2_rect.NativeSize * 2) + v4l2_fract.NativeSize;
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write((UInt32)type);
+            bounds.GetPointer();
+            defrect.GetPointer();
+            pixelaspect.GetPointer();
+            ms.Position += (v4l2_rect.NativeSize * 2) + v4l2_fract.NativeSize;
+            return selfPtr;
         }
     };
 
     public class v4l2_crop : V4L2Struct
     {
         public v4l2_buf_type type;
-        public v4l2_rect c = new v4l2_rect();
+        public v4l2_rect c;
+
+        public unsafe v4l2_crop() : base()
+        {
+            ms.Position = 4;
+            c = new v4l2_rect(ms.PositionPointer);
+        }
+
+        public new const int NativeSize = 4 + v4l2_rect.NativeSize;
 
         public override int GetSize()
         {
-            return 4 + c.GetSize();
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
-            {
-                ms.SetLength(0);
-                bw.Write((UInt32)type);
-                bw.Write(c.Buffer);
-                return ms.ToArray();
-            }
-            set
-            {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                type = (v4l2_buf_type)br.ReadUInt32();
-                c.Buffer = br.ReadBytes(c.GetSize());
-            }
+            ms.Position = 0;
+            type = (v4l2_buf_type)br.ReadUInt32();
+            c.UpdateFromUnmanaged();
+            ms.Position += c.GetSize();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write((UInt32)type);
+            c.GetPointer();
+            ms.Position += c.GetSize();
+            return selfPtr;
         }
     };
 
@@ -1354,43 +1433,49 @@ namespace V4L2_for_NET
         public v4l2_buf_type type;
         public UInt32 target;
         public UInt32 flags;
-        public v4l2_rect r = new v4l2_rect();
+        public v4l2_rect r;
         public UInt32[] reserved = new UInt32[9];
+
+        public unsafe v4l2_selection() : base()
+        {
+            ms.Position = 4 * 3;
+            r = new v4l2_rect(ms.PositionPointer);
+        }
+
+        public new const int NativeSize = 4 * 12 + v4l2_rect.NativeSize;
 
         public override int GetSize()
         {
-            return 4 * 12 + r.GetSize();
+            return NativeSize;
         }
 
-        public override byte[] Buffer
+        public override void UpdateFromUnmanaged()
         {
-            get
+            ms.Position = 0;
+            type = (v4l2_buf_type)br.ReadUInt32();
+            target = br.ReadUInt32();
+            flags = br.ReadUInt32();
+            r.UpdateFromUnmanaged();
+            ms.Position += r.GetSize();
+            for (int i = 0; i < 9; i++)
             {
-                ms.SetLength(0);
-                bw.Write((UInt32)type);
-                bw.Write(target);
-                bw.Write(flags);
-                bw.Write(r.Buffer);
-                for(int i=0; i< 9;i++)
-                {
-                    bw.Write(reserved[i]);
-                }
-                return ms.ToArray();
+                reserved[i] = br.ReadUInt32();
             }
-            set
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write((UInt32)type);
+            bw.Write(target);
+            bw.Write(flags);
+            r.GetPointer();
+            ms.Position += r.GetSize();
+            for (int i = 0; i < 9; i++)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                type = (v4l2_buf_type)br.ReadUInt32();
-                target = br.ReadUInt32();
-                flags = br.ReadUInt32();
-                r.Buffer = br.ReadBytes(r.GetSize());
-                for (int i=0; i<9; i++)
-                {
-                    reserved[i] = br.ReadUInt32();
-                }
+                bw.Write(reserved[i]);
             }
+            return selfPtr;
         }
     };
 
@@ -1402,52 +1487,58 @@ namespace V4L2_for_NET
         /// <summary>
         /// Frames, not fields
         /// </summary>
-        public v4l2_fract frameperiod = new v4l2_fract();
+        public v4l2_fract frameperiod;
         public UInt32 framelines;
         public UInt32[] reserved = new UInt32[4];
 
-        public override int GetSize()
+        public unsafe v4l2_standard() : base()
         {
-            return 4 * 8 + 24 + frameperiod.GetSize();
+            ms.Position = 4 + 8 + 24;
+            frameperiod = new v4l2_fract(ms.PositionPointer);
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 * 8 + 24 + v4l2_fract.NativeSize;
+
+        public override int GetSize()
         {
-            get
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            index = br.ReadUInt32();
+            id = br.ReadUInt64();
+            for (int i = 0; i < 24; i++)
             {
-                ms.SetLength(0);
-                bw.Write(index);
-                bw.Write(id);
-                for(int i=0; i< 24;i++)
-                {
-                    bw.Write(name[i]);
-                }
-                bw.Write(frameperiod.Buffer);
-                bw.Write(framelines);
-                for (int i = 0; i < 4; i++)
-                {
-                    bw.Write(reserved[i]);
-                }
-                return ms.ToArray();
+                name[i] = br.ReadByte();
             }
-            set
+            frameperiod.UpdateFromUnmanaged();
+            ms.Position += frameperiod.GetSize();
+            framelines = br.ReadUInt32();
+            for (int i = 0; i < 4; i++)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                index = br.ReadUInt32();
-                id = br.ReadUInt64();
-                for (int i = 0; i < 24; i++)
-                {
-                    name[i] = br.ReadByte();
-                }
-                frameperiod.Buffer = br.ReadBytes(frameperiod.GetSize());
-                framelines = br.ReadUInt32();
-                for (int i = 0; i < 4; i++)
-                {
-                    reserved[i] = br.ReadUInt32();
-                }
+                reserved[i] = br.ReadUInt32();
             }
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(index);
+            bw.Write(id);
+            for (int i = 0; i < 24; i++)
+            {
+                bw.Write(name[i]);
+            }
+            frameperiod.GetPointer();
+            ms.Position += frameperiod.GetSize();
+            bw.Write(framelines);
+            for (int i = 0; i < 4; i++)
+            {
+                bw.Write(reserved[i]);
+            }
+            return selfPtr;
         }
     };
 
@@ -1469,75 +1560,81 @@ namespace V4L2_for_NET
         public UInt32 il_vbackporch;
         public UInt32 standards;
         public UInt32 flags;
-        public v4l2_fract picture_aspect = new v4l2_fract();
+        public v4l2_fract picture_aspect;
         public byte cea861_vic;
         public byte hdmi_vic;
         public byte[] reserved = new byte[46];
 
-        public override int GetSize()
+        public unsafe v4l2_bt_timings() : base()
         {
-            return 4 * 17 + 48 + picture_aspect.GetSize();
+            ms.Position = 4 * 17;
+            picture_aspect = new v4l2_fract(ms.PositionPointer);
         }
 
-        public override byte[] Buffer
+        public new const int NativeSize = 4 * 17 + 48 + v4l2_fract.NativeSize;
+
+        public override int GetSize()
         {
-            get
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            width = br.ReadUInt32();
+            height = br.ReadUInt32();
+            interlaced = br.ReadUInt32();
+            polarities = br.ReadUInt32();
+            pixelclock = br.ReadUInt64();
+            hfrontporch = br.ReadUInt32();
+            hsync = br.ReadUInt32();
+            hbackporch = br.ReadUInt32();
+            vfrontporch = br.ReadUInt32();
+            vsync = br.ReadUInt32();
+            vbackporch = br.ReadUInt32();
+            il_vfrontporch = br.ReadUInt32();
+            il_vsync = br.ReadUInt32();
+            il_vbackporch = br.ReadUInt32();
+            standards = br.ReadUInt32();
+            flags = br.ReadUInt32();
+            picture_aspect.UpdateFromUnmanaged();
+            ms.Position += picture_aspect.GetSize();
+            cea861_vic = br.ReadByte();
+            hdmi_vic = br.ReadByte();
+            for (int i = 0; i < 46; i++)
             {
-                ms.SetLength(0);
-                bw.Write(width);
-                bw.Write(height);
-                bw.Write(interlaced);
-                bw.Write(polarities);
-                bw.Write(pixelclock);
-                bw.Write(hfrontporch);
-                bw.Write(hsync);
-                bw.Write(hbackporch);
-                bw.Write(vfrontporch);
-                bw.Write(vsync);
-                bw.Write(vbackporch);
-                bw.Write(il_vfrontporch);
-                bw.Write(il_vsync);
-                bw.Write(il_vbackporch);
-                bw.Write(standards);
-                bw.Write(flags);
-                bw.Write(picture_aspect.Buffer);
-                bw.Write(cea861_vic);
-                bw.Write(hdmi_vic);
-                for (int i = 0; i < 46; i++)
-                {
-                    bw.Write(reserved[i]);
-                }
-                return ms.ToArray();
+                reserved[i] = br.ReadByte();
             }
-            set
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(width);
+            bw.Write(height);
+            bw.Write(interlaced);
+            bw.Write(polarities);
+            bw.Write(pixelclock);
+            bw.Write(hfrontporch);
+            bw.Write(hsync);
+            bw.Write(hbackporch);
+            bw.Write(vfrontporch);
+            bw.Write(vsync);
+            bw.Write(vbackporch);
+            bw.Write(il_vfrontporch);
+            bw.Write(il_vsync);
+            bw.Write(il_vbackporch);
+            bw.Write(standards);
+            bw.Write(flags);
+            picture_aspect.GetPointer();
+            ms.Position += picture_aspect.GetSize();
+            bw.Write(cea861_vic);
+            bw.Write(hdmi_vic);
+            for (int i = 0; i < 46; i++)
             {
-                ms.SetLength(0);
-                ms.Write(value);
-                ms.Position = 0;
-                width = br.ReadUInt32();
-                height = br.ReadUInt32();
-                interlaced = br.ReadUInt32();
-                polarities = br.ReadUInt32();
-                pixelclock = br.ReadUInt64();
-                hfrontporch = br.ReadUInt32();
-                hsync = br.ReadUInt32();
-                hbackporch = br.ReadUInt32();
-                vfrontporch = br.ReadUInt32();
-                vsync = br.ReadUInt32();
-                vbackporch = br.ReadUInt32();
-                il_vfrontporch = br.ReadUInt32();
-                il_vsync = br.ReadUInt32();
-                il_vbackporch = br.ReadUInt32();
-                standards = br.ReadUInt32();
-                flags = br.ReadUInt32();
-                picture_aspect.Buffer = br.ReadBytes(picture_aspect.GetSize());
-                cea861_vic = br.ReadByte();
-                hdmi_vic = br.ReadByte();
-                for (int i = 0; i < 46; i++)
-                {
-                    reserved[i] = br.ReadByte();
-                }
+                bw.Write(reserved[i]);
             }
+            return selfPtr;
         }
     } //__attribute__((packed));
 
@@ -1545,8 +1642,8 @@ namespace V4L2_for_NET
     {
         UInt32 type;
         //union {
-		v4l2_bt_timings  bt;
-		UInt32[] reserved = new UInt32[32];
+        v4l2_bt_timings bt;
+        UInt32[] reserved = new UInt32[32];
         //};
     } //__attribute__((packed));
 
@@ -1577,8 +1674,8 @@ namespace V4L2_for_NET
         UInt32 pad;
         UInt32[] reserved = new UInt32[2];
         //union {
-		    v4l2_bt_timings_cap bt;
-		    UInt32[] raw_data = new UInt32[32];
+        v4l2_bt_timings_cap bt;
+        UInt32[] raw_data = new UInt32[32];
         //};
     };
 
@@ -1621,18 +1718,18 @@ namespace V4L2_for_NET
     //    UInt32 size;
     //    UInt32 reserved2;
     //    //union {
-		  //  Int32 value;
+    //  Int32 value;
     //        Int64 value64;
     //        char __user *string;
-		  //  byte __user *p_u8;
-		  //  UInt16 __user *p_u16;
-		  //  UInt32 __user *p_u32;
-		  //  Int32 __user *p_s32;
-		  //  Int64 __user *p_s64;
+    //  byte __user *p_u8;
+    //  UInt16 __user *p_u16;
+    //  UInt32 __user *p_u32;
+    //  Int32 __user *p_s32;
+    //  Int64 __user *p_s64;
     //        v4l2_area __user* p_area;
     //        v4l2_ctrl_h264_sps __user* p_h264_sps;
     //        v4l2_ctrl_h264_pps *p_h264_pps;
-		  //  v4l2_ctrl_h264_scaling_matrix __user* p_h264_scaling_matrix;
+    //  v4l2_ctrl_h264_scaling_matrix __user* p_h264_scaling_matrix;
     //        v4l2_ctrl_h264_pred_weights __user* p_h264_pred_weights;
     //        v4l2_ctrl_h264_slice_params __user* p_h264_slice_params;
     //        v4l2_ctrl_h264_decode_params __user* p_h264_decode_params;
@@ -1653,7 +1750,7 @@ namespace V4L2_for_NET
     //        v4l2_ctrl_av1_frame __user* p_av1_frame;
     //        v4l2_ctrl_av1_film_grain __user* p_av1_film_grain;
     //        UIntPtr ptr;
-	   // //};
+    // //};
     //} //__attribute__((packed));
 
     //public class v4l2_ext_controls
@@ -1692,7 +1789,7 @@ namespace V4L2_for_NET
         UInt32 elem_size;
         UInt32 elems;
         UInt32 nr_of_dims;
-        UInt32[] dims = new  UInt32[(int)V4L2_CTRL.MAX_DIMS];
+        UInt32[] dims = new UInt32[(int)V4L2_CTRL.MAX_DIMS];
         UInt32[] reserved = new UInt32[32];
     };
 
@@ -1701,8 +1798,8 @@ namespace V4L2_for_NET
         UInt32 id;
         UInt32 index;
         //union {
-		    byte[] name = new byte[32];  /* Whatever */
-            Int64 value;
+        byte[] name = new byte[32];  /* Whatever */
+        Int64 value;
         //};
         UInt32 reserved;
     } //__attribute__((packed));
@@ -1854,7 +1951,7 @@ namespace V4L2_for_NET
                      (equals frame lines 313-336 for 625 line video
                       standards, 263-286 for 525 line standards) */
         UInt16[,] service_lines = new UInt16[2, 24];
-	    UInt32 io_size;
+        UInt32 io_size;
         UInt32[] reserved = new UInt32[2];            /* must be zero */
     };
 
@@ -1902,7 +1999,7 @@ namespace V4L2_for_NET
         //union {
         v4l2_mpeg_vbi_itv0 itv0;
         v4l2_mpeg_vbi_ITV0 ITV0;
-	    //};
+        //};
     } //__attribute__((packed));
 
     public class v4l2_plane_pix_format
@@ -1921,11 +2018,11 @@ namespace V4L2_for_NET
         UInt32 colorspace;
 
         v4l2_plane_pix_format[] plane_fmt = new v4l2_plane_pix_format[(int)VIDEO_MAX.PLANES];
-	    byte num_planes;
+        byte num_planes;
         byte flags;
         //union {
-		    byte ycbcr_enc;
-            byte hsv_enc;
+        byte ycbcr_enc;
+        byte hsv_enc;
         //};
         byte quantization;
         byte xfer_func;
@@ -1952,11 +2049,11 @@ namespace V4L2_for_NET
     //        v4l2_pix_format      pix;     /* V4L2_BUF_TYPE_VIDEO_CAPTURE */
     //        v4l2_pix_format_mplane   pix_mp;  /* V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE */
     //        v4l2_window      win;     /* V4L2_BUF_TYPE_VIDEO_OVERLAY */
-		  //  v4l2_vbi_format      vbi;     /* V4L2_BUF_TYPE_VBI_CAPTURE */
-		  //  v4l2_sliced_vbi_format   sliced;  /* V4L2_BUF_TYPE_SLICED_VBI_CAPTURE */
-		  //  v4l2_sdr_format      sdr;     /* V4L2_BUF_TYPE_SDR_CAPTURE */
-		  //  v4l2_meta_format     meta;    /* V4L2_BUF_TYPE_META_CAPTURE */
-		  //  byte[] raw_data = new byte[200];                   /* user-defined */
+    //  v4l2_vbi_format      vbi;     /* V4L2_BUF_TYPE_VBI_CAPTURE */
+    //  v4l2_sliced_vbi_format   sliced;  /* V4L2_BUF_TYPE_SLICED_VBI_CAPTURE */
+    //  v4l2_sdr_format      sdr;     /* V4L2_BUF_TYPE_SDR_CAPTURE */
+    //  v4l2_meta_format     meta;    /* V4L2_BUF_TYPE_META_CAPTURE */
+    //  byte[] raw_data = new byte[200];                   /* user-defined */
     //    //} fmt;
     //};
 
@@ -1964,9 +2061,9 @@ namespace V4L2_for_NET
     //{
     //    UInt32 type;         /* enum v4l2_buf_type */
     //    //union {
-		  //  v4l2_captureparm capture;
-		  //  v4l2_outputparm  output;
-		  //  byte[] raw_data = new byte[200];  /* user-defined */
+    //  v4l2_captureparm capture;
+    //  v4l2_outputparm  output;
+    //  byte[] raw_data = new byte[200];  /* user-defined */
     //    //} parm;
     //};
 
@@ -1981,7 +2078,7 @@ namespace V4L2_for_NET
     //    UInt32 changes;
     //    UInt32 type;
     //    //union {
-		  //  Int32 value;
+    //  Int32 value;
     //        Int64 value64;
     //    //};
     //    UInt32 flags;
@@ -2012,17 +2109,17 @@ namespace V4L2_for_NET
     //{
     //    UInt32 type;
     //    //union {
-		  //  v4l2_event_vsync     vsync;
-		  //  v4l2_event_ctrl      ctrl;
-		  //  v4l2_event_frame_sync    frame_sync;
-		  //  v4l2_event_src_change    src_change;
-		  //  v4l2_event_motion_det    motion_det;
-		  //  byte[] data = new byte[64];
+    //  v4l2_event_vsync     vsync;
+    //  v4l2_event_ctrl      ctrl;
+    //  v4l2_event_frame_sync    frame_sync;
+    //  v4l2_event_src_change    src_change;
+    //  v4l2_event_motion_det    motion_det;
+    //  byte[] data = new byte[64];
     //    //} u;
-	   // UInt32 pending;
+    // UInt32 pending;
     //    UInt32 sequence;
-	   // timespec         timestamp;
-	   // UInt32 id;
+    // timespec         timestamp;
+    // UInt32 id;
     //    UInt32[] reserved = new UInt32[8];
     //};
 
@@ -2038,7 +2135,7 @@ namespace V4L2_for_NET
     //{
     //    UInt32 type; /* Match type */
     //    //union {     /* Match this chip, meaning determined by type */
-		  //  UInt32 addr;
+    //  UInt32 addr;
     //        char[] name = new char[32];
     //    //};
     //} //__attribute__((packed));
@@ -2046,7 +2143,7 @@ namespace V4L2_for_NET
     //public class v4l2_dbg_register
     //{
     //    v4l2_dbg_match match;
-	   // UInt32 size; /* register size in bytes */
+    // UInt32 size; /* register size in bytes */
     //    UInt64 reg;
     //    UInt64 val;
     //} //__attribute__((packed));
@@ -2054,7 +2151,7 @@ namespace V4L2_for_NET
     //public class v4l2_dbg_chip_info
     //{
     //    v4l2_dbg_match match;
-	   // char[] name = new char[32];
+    // char[] name = new char[32];
     //    UInt32 flags;
     //    UInt32[] reserved = new UInt32[32];
     //} //__attribute__((packed));
@@ -2065,7 +2162,7 @@ namespace V4L2_for_NET
     //    UInt32 count;
     //    UInt32 memory;
     //    v4l2_format  format;
-	   // UInt32 capabilities;
+    // UInt32 capabilities;
     //    UInt32 flags;
     //    UInt32[] reserved = new UInt32[6];
     //};

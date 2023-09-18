@@ -142,13 +142,9 @@ namespace V4L2_for_NET
         {
             int size = arg.GetSize();
             uint code = GetIoctlCode(0, IoctlAccess.Read, size);
-            IntPtr ptr = Marshal.AllocHGlobal(size);
-            Marshal.Copy(arg.Buffer, 0, ptr, size);
+            IntPtr ptr = arg.GetPointer();
             int ret = ioctl(fd, code, ptr);
-            byte[] buf = new byte[size];
-            Marshal.Copy(ptr, buf, 0, size);
-            arg.Buffer = buf;
-            Marshal.FreeHGlobal(ptr);
+            arg.UpdateFromUnmanaged();
             return ret;
         }
 
