@@ -28,7 +28,7 @@ namespace V4L2_for_NET
         /// </summary>
         public unsafe V4L2Struct()
         {
-            IntPtr selfPtr = Marshal.AllocHGlobal(GetSize());
+            selfPtr = Marshal.AllocHGlobal(GetSize());
             ms = new UnmanagedMemoryStream((byte*)selfPtr.ToPointer(), GetSize(), GetSize(), FileAccess.ReadWrite);
             br = new BinaryReader(ms, Encoding.UTF8, true);
             bw = new BinaryWriter(ms, Encoding.UTF8, true);
