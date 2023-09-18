@@ -175,13 +175,13 @@ namespace V4L2_for_NET
 
     public class v4l2_capability : V4L2Struct
     {
-        byte[] driver = new byte[16];
-        byte[] card = new byte[32];
-        byte[] bus_info = new byte[32];
-        UInt32 version;
-        UInt32 capabilities;
-        UInt32 device_caps;
-        UInt32[] reserved = new UInt32[3];
+        public byte[] driver = new byte[16];
+        public byte[] card = new byte[32];
+        public byte[] bus_info = new byte[32];
+        public UInt32 version;
+        public UInt32 capabilities;
+        public UInt32 device_caps;
+        public UInt32[] reserved = new UInt32[3];
 
         public new const int NativeSize = 4 * 6 + 16 + 32 + 32;
 
