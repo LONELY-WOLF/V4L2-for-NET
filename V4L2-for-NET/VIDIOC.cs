@@ -169,8 +169,8 @@ namespace V4L2_for_NET
             uint code = 0;
             code |= ((UInt32)access) << (14 + 16);
             code |= ((uint)size & 0b0011_1111_1111_1111) << 16;
-            code |= (t & 0x0F) << 8;
-            code |= (number & 0x0F);
+            code |= (t & 0xFF) << 8;
+            code |= (number & 0xFF);
             return code;
         }
 
