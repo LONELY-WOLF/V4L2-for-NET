@@ -463,13 +463,13 @@ namespace V4L2_for_NET
             type = (v4l2_frmsizetypes)br.ReadUInt32();
             switch (type)
             {
-                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE:
+                case v4l2_frmsizetypes.DISCRETE:
                     {
                         discrete.UpdateFromUnmanaged();
                         break;
                     }
-                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_CONTINUOUS:
-                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_STEPWISE:
+                case v4l2_frmsizetypes.CONTINUOUS:
+                case v4l2_frmsizetypes.STEPWISE:
                     {
                         stepwise.UpdateFromUnmanaged();
                         break;
@@ -488,13 +488,13 @@ namespace V4L2_for_NET
             bw.Write((UInt32)type);
             switch (type)
             {
-                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE:
+                case v4l2_frmsizetypes.DISCRETE:
                     {
                         discrete.GetPointer();
                         break;
                     }
-                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_CONTINUOUS:
-                case v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_STEPWISE:
+                case v4l2_frmsizetypes.CONTINUOUS:
+                case v4l2_frmsizetypes.STEPWISE:
                     {
                         stepwise.GetPointer();
                         break;
@@ -591,13 +591,13 @@ namespace V4L2_for_NET
             type = (v4l2_frmivaltypes)br.ReadUInt32();
             switch (type)
             {
-                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE:
+                case v4l2_frmivaltypes.DISCRETE:
                     {
                         discrete.UpdateFromUnmanaged();
                         break;
                     }
-                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_CONTINUOUS:
-                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_STEPWISE:
+                case v4l2_frmivaltypes.CONTINUOUS:
+                case v4l2_frmivaltypes.STEPWISE:
                     {
                         stepwise.UpdateFromUnmanaged();
                         break;
@@ -618,13 +618,13 @@ namespace V4L2_for_NET
             bw.Write((UInt32)type);
             switch (type)
             {
-                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE:
+                case v4l2_frmivaltypes.DISCRETE:
                     {
                         discrete.GetPointer();
                         break;
                     }
-                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_CONTINUOUS:
-                case v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_STEPWISE:
+                case v4l2_frmivaltypes.CONTINUOUS:
+                case v4l2_frmivaltypes.STEPWISE:
                     {
                         stepwise.GetPointer();
                         break;
@@ -999,7 +999,7 @@ namespace V4L2_for_NET
             ms.Position += timestamp.GetSize() + timecode.GetSize();
             sequence = br.ReadUInt32();
             memory = (v4l2_memory)br.ReadUInt32();
-            if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+            if (type == v4l2_buf_type.VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.VIDEO_OUTPUT_MPLANE)
             {
                 // Is it something to be done?
             }
@@ -1007,18 +1007,18 @@ namespace V4L2_for_NET
             {
                 switch (memory)
                 {
-                    case v4l2_memory.V4L2_MEMORY_MMAP:
+                    case v4l2_memory.MMAP:
                         {
                             offset = br.ReadUInt32();
                             ms.Position += 4;
                             break;
                         }
-                    case v4l2_memory.V4L2_MEMORY_USERPTR:
+                    case v4l2_memory.USERPTR:
                         {
                             userptr = br.ReadUInt64();
                             break;
                         }
-                    case v4l2_memory.V4L2_MEMORY_DMABUF:
+                    case v4l2_memory.DMABUF:
                         {
                             fd = br.ReadInt32();
                             ms.Position += 4;
@@ -1034,7 +1034,7 @@ namespace V4L2_for_NET
             reserved2 = br.ReadUInt32();
             request_fd = br.ReadInt32();
 
-            if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+            if (type == v4l2_buf_type.VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.VIDEO_OUTPUT_MPLANE)
             {
                 // Now we can read planes if needed
                 for (int i = 0; i < length; i++)
@@ -1057,7 +1057,7 @@ namespace V4L2_for_NET
             ms.Position += timestamp.GetSize() + timecode.GetSize();
             bw.Write(sequence);
             bw.Write((UInt32)memory);
-            if (type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+            if (type == v4l2_buf_type.VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.VIDEO_OUTPUT_MPLANE)
             {
                 for (int i = 0; i < length; i++)
                 {
@@ -1069,18 +1069,18 @@ namespace V4L2_for_NET
             {
                 switch (memory)
                 {
-                    case v4l2_memory.V4L2_MEMORY_MMAP:
+                    case v4l2_memory.MMAP:
                         {
                             bw.Write(offset);
                             Fill(4);
                             break;
                         }
-                    case v4l2_memory.V4L2_MEMORY_USERPTR:
+                    case v4l2_memory.USERPTR:
                         {
                             bw.Write(userptr);
                             break;
                         }
-                    case v4l2_memory.V4L2_MEMORY_DMABUF:
+                    case v4l2_memory.DMABUF:
                         {
                             bw.Write(fd);
                             Fill(4);
@@ -2332,22 +2332,22 @@ namespace V4L2_for_NET
             type = (v4l2_buf_type)br.ReadUInt32();
             switch(type)
             {
-                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE:
+                case v4l2_buf_type.VIDEO_CAPTURE:
                     {
                         pix.UpdateFromUnmanaged();
                         break;
                     }
-                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+                case v4l2_buf_type.VIDEO_CAPTURE_MPLANE:
                     {
                         pix_mp.UpdateFromUnmanaged();
                         break;
                     }
-                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OVERLAY:
+                case v4l2_buf_type.VIDEO_OVERLAY:
                     {
                         win.UpdateFromUnmanaged();
                         break;
                     }
-                case v4l2_buf_type.V4L2_BUF_TYPE_META_CAPTURE:
+                case v4l2_buf_type.META_CAPTURE:
                     {
                         meta.UpdateFromUnmanaged();
                         break;
@@ -2366,22 +2366,22 @@ namespace V4L2_for_NET
             bw.Write((UInt32)type);
             switch (type)
             {
-                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE:
+                case v4l2_buf_type.VIDEO_CAPTURE:
                     {
                         pix.GetPointer();
                         break;
                     }
-                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+                case v4l2_buf_type.VIDEO_CAPTURE_MPLANE:
                     {
                         pix_mp.GetPointer();
                         break;
                     }
-                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OVERLAY:
+                case v4l2_buf_type.VIDEO_OVERLAY:
                     {
                         win.GetPointer();
                         break;
                     }
-                case v4l2_buf_type.V4L2_BUF_TYPE_META_CAPTURE:
+                case v4l2_buf_type.META_CAPTURE:
                     {
                         meta.GetPointer();
                         break;

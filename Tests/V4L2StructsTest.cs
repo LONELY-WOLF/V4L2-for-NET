@@ -85,7 +85,7 @@ namespace Tests
         public void v4l2_frmsizeenum_SizeIsCorrect()
         {
             v4l2_frmsizeenum f = new v4l2_frmsizeenum();
-            f.type = v4l2_frmsizetypes.V4L2_FRMSIZE_TYPE_DISCRETE;
+            f.type = v4l2_frmsizetypes.DISCRETE;
             V4L2StructSizeISCorrect(f);
         }
 
@@ -99,7 +99,7 @@ namespace Tests
         public void v4l2_frmivalenum_SizeIsCorrect()
         {
             v4l2_frmivalenum f = new v4l2_frmivalenum();
-            f.type = v4l2_frmivaltypes.V4L2_FRMIVAL_TYPE_DISCRETE;
+            f.type = v4l2_frmivaltypes.DISCRETE;
             V4L2StructSizeISCorrect(new v4l2_frmivalenum());
         }
 
@@ -140,8 +140,8 @@ namespace Tests
         public void v4l2_buffer_SizeIsCorrect()
         {
             v4l2_buffer buf = new v4l2_buffer();
-            buf.type = v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE;
-            buf.memory = v4l2_memory.V4L2_MEMORY_USERPTR;
+            buf.type = v4l2_buf_type.VIDEO_CAPTURE;
+            buf.memory = v4l2_memory.USERPTR;
             V4L2StructSizeISCorrect(buf);
         }
 
@@ -233,7 +233,7 @@ namespace Tests
         public void v4l2_format_SizeIsCorrect()
         {
             v4l2_format f = new v4l2_format();
-            f.type = v4l2_buf_type.V4L2_BUF_TYPE_META_CAPTURE;
+            f.type = v4l2_buf_type.META_CAPTURE;
             V4L2StructSizeISCorrect(f);
         }
     }
