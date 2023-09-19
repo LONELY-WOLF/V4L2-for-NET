@@ -5,10 +5,13 @@ using System.Diagnostics.Metrics;
 using System.Drawing;
 using System.Linq;
 using System.Numerics;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
+using static System.Net.Mime.MediaTypeNames;
 
 [assembly: InternalsVisibleTo("Tests")]
 
@@ -258,6 +261,10 @@ namespace V4L2_for_NET
 
         public new const int NativeSize = 12 * 4;
 
+        public unsafe v4l2_pix_format(byte* ptr) : base(ptr)
+        {
+        }
+
         public override int GetSize()
         {
             return NativeSize;
@@ -297,8 +304,7 @@ namespace V4L2_for_NET
             bw.Write((UInt32)xfer_func);
             return selfPtr;
         }
-    };
-
+    }
     public class v4l2_fmtdesc : V4L2Struct
     {
         public UInt32 index;             /* Format number      */
@@ -1198,22 +1204,132 @@ namespace V4L2_for_NET
         }
     };
 
-    //public class v4l2_clip
-    //{
-    //    v4l2_rect        c;
-    // v4l2_clip    __user* next;
-    //};
+    public class v4l2_clip : V4L2Struct
+    {
+        public v4l2_rect c;
+        // Docs say it's always NULL
+        //public v4l2_clip? next = null;
 
-    //public class v4l2_window
-    //{
-    //    v4l2_rect        w;
-    //    v4l2_field field;
-    //    UInt32 chromakey;
-    //    v4l2_clip    *clips;
-    // UInt32 clipcount;
-    //    UIntPtr bitmap;
-    // byte global_alpha;
-    //};
+        public new const int NativeSize = v4l2_rect.NativeSize + 8;
+
+        public unsafe v4l2_clip(byte* ptr) : base(ptr)
+        {
+            ms.Position = 0;
+            c = new v4l2_rect(ms.PositionPointer);
+        }
+
+        public override int GetSize()
+        {
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            c.UpdateFromUnmanaged();
+            ms.Position = v4l2_rect.NativeSize;
+            //next?.UpdateFromUnmanaged();
+            ms.Position += 8;
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            c.GetPointer();
+            ms.Position = v4l2_rect.NativeSize;
+            //if (next != null)
+            //{
+            //    bw.Write(next.GetPointer());
+            //}
+            //else
+            //{
+                bw.Write(IntPtr.Zero);
+            //}
+            return selfPtr;
+        }
+    };
+
+    public class v4l2_window : V4L2Struct
+    {
+        public v4l2_rect w;
+        public v4l2_field field;
+        public UInt32 chromakey;
+        public v4l2_clip[] clips = new v4l2_clip[16]; // As pointer
+        public UInt32 clipcount;
+        public IntPtr bitmap;
+        public byte global_alpha;
+
+        IntPtr clips_data;
+
+        public new const int NativeSize = v4l2_rect.NativeSize + 4 * 7 + 1;
+
+        public override int GetSize()
+        {
+            return NativeSize;
+        }
+
+        public unsafe v4l2_window(byte* ptr) : base(ptr)
+        {
+            ms.Position = 0;
+            w = new v4l2_rect(ms.PositionPointer);
+
+            clips_data = Marshal.AllocHGlobal(v4l2_plane.StructSize * (int)VIDEO_MAX.PLANES);
+            byte* planes_ptr = (byte*)clips_data.ToPointer();
+            for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
+            {
+                clips[i] = new v4l2_clip(planes_ptr + (v4l2_clip.NativeSize * i));
+            }
+        }
+
+        ~v4l2_window()
+        {
+            Marshal.FreeHGlobal(clips_data);
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            w.UpdateFromUnmanaged();
+            ms.Position = v4l2_rect.NativeSize;
+            field = (v4l2_field)br.ReadUInt32();
+            chromakey = br.ReadUInt32();
+            if(br.ReadInt64() != clips_data)
+            {
+                throw new Exception("Clips pointer changed!");
+            }
+            clipcount = br.ReadUInt32();
+            if(clipcount > 16)
+            {
+                throw new IndexOutOfRangeException();
+            }
+            bitmap = (nint)br.ReadInt64();
+            global_alpha = br.ReadByte();
+
+            // Now we can read clips if needed
+            for (int i = 0; i < clipcount; i++)
+            {
+                clips[i].UpdateFromUnmanaged();
+            }
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            w.GetPointer();
+            ms.Position = v4l2_rect.NativeSize;
+            bw.Write((UInt32)field);
+            bw.Write(chromakey);
+            for (int i = 0; i < clipcount; i++)
+            {
+                clips[i].GetPointer();
+            }
+            bw.Write(clips_data);
+            bw.Write(clipcount);
+            bw.Write(bitmap);
+            bw.Write(global_alpha);
+            return selfPtr;
+        }
+    };
 
     public class v4l2_captureparm : V4L2Struct
     {
@@ -2009,31 +2125,132 @@ namespace V4L2_for_NET
         //};
     } //__attribute__((packed));
 
-    public class v4l2_plane_pix_format
+    public class v4l2_plane_pix_format : V4L2Struct
     {
-        UInt32 sizeimage;
-        UInt32 bytesperline;
-        UInt16[] reserved = new UInt16[6];
+        public UInt32 sizeimage;
+        public UInt32 bytesperline;
+        public UInt16[] reserved = new UInt16[6];
+
+        public unsafe v4l2_plane_pix_format(byte* ptr) : base(ptr)
+        {
+        }
+
+        public new const int NativeSize = 8 + 12;
+
+        public override int GetSize()
+        {
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            sizeimage = br.ReadUInt32();
+            bytesperline = br.ReadUInt32();
+            for (int i = 0; i < 6; i++)
+            {
+                reserved[i] = br.ReadUInt16();
+            }
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(sizeimage);
+            bw.Write(bytesperline);
+            for (int i = 0; i < 6; i++)
+            {
+                bw.Write(reserved[i]);
+            }
+            return selfPtr;
+        }
     } //__attribute__((packed));
 
-    public class v4l2_pix_format_mplane
+    public class v4l2_pix_format_mplane : V4L2Struct
     {
-        UInt32 width;
-        UInt32 height;
-        UInt32 pixelformat;
-        UInt32 field;
-        UInt32 colorspace;
+        public UInt32 width;
+        public UInt32 height;
+        public UInt32 pixelformat;
+        public v4l2_field field;
+        public v4l2_colorspace colorspace;
 
-        v4l2_plane_pix_format[] plane_fmt = new v4l2_plane_pix_format[(int)VIDEO_MAX.PLANES];
-        byte num_planes;
-        byte flags;
+        public v4l2_plane_pix_format[] plane_fmt = new v4l2_plane_pix_format[(int)VIDEO_MAX.PLANES];
+        public byte num_planes;
+        public byte flags;
         //union {
-        byte ycbcr_enc;
-        byte hsv_enc;
+        byte union;
+        public v4l2_ycbcr_encoding ycbcr_enc { get { return (v4l2_ycbcr_encoding)union; } set { union = (byte)value; } } // 1 byte!
+        public v4l2_hsv_encoding hsv_enc { get { return (v4l2_hsv_encoding)union; } set { union = (byte)value; } } // 1 byte!
         //};
-        byte quantization;
-        byte xfer_func;
-        byte[] reserved = new byte[7];
+        public v4l2_quantization quantization; // 1 byte!
+        public v4l2_xfer_func xfer_func; // 1 byte!
+        public byte[] reserved = new byte[7];
+
+        public unsafe v4l2_pix_format_mplane(byte* ptr) : base(ptr)
+        {
+            ms.Position = 4 * 5;
+            byte* p = ms.PositionPointer;
+            for(int i=0;i<(int)VIDEO_MAX.PLANES;i++)
+            {
+                plane_fmt[i] = new v4l2_plane_pix_format(p + (v4l2_plane_pix_format.NativeSize * i));
+            }
+        }
+
+        public new const int NativeSize = 4 * 5 + 12 + (v4l2_plane_pix_format.NativeSize * (int)VIDEO_MAX.PLANES);
+
+        public override int GetSize()
+        {
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            width = br.ReadUInt32();
+            height = br.ReadUInt32();
+            pixelformat = br.ReadUInt32();
+            field = (v4l2_field)br.ReadUInt32();
+            colorspace = (v4l2_colorspace)br.ReadUInt32();
+            for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
+            {
+                plane_fmt[i].UpdateFromUnmanaged();
+            }
+            ms.Position += v4l2_plane_pix_format.NativeSize * (int)VIDEO_MAX.PLANES;
+            num_planes = br.ReadByte();
+            flags = br.ReadByte();
+            union = br.ReadByte();
+            quantization = (v4l2_quantization)br.ReadByte();
+            xfer_func = (v4l2_xfer_func)br.ReadByte();
+            for (int i = 0; i < 7; i++)
+            {
+                reserved[i] = br.ReadByte();
+            }
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(width);
+            bw.Write(height);
+            bw.Write(pixelformat);
+            bw.Write((UInt32)field);
+            bw.Write((UInt32)colorspace);
+            for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
+            {
+                plane_fmt[i].GetPointer();
+            }
+            ms.Position += v4l2_plane_pix_format.NativeSize * (int)VIDEO_MAX.PLANES;
+            bw.Write(num_planes);
+            bw.Write(flags);
+            bw.Write(union);
+            bw.Write((byte)quantization);
+            bw.Write((byte)xfer_func);
+            for (int i = 0; i < 7; i++)
+            {
+                bw.Write(reserved[i]);
+            }
+            return selfPtr;
+        }
     } //__attribute__((packed));
 
     public class v4l2_sdr_format
@@ -2043,26 +2260,141 @@ namespace V4L2_for_NET
         byte[] reserved = new byte[24];
     } //__attribute__((packed));
 
-    public class v4l2_meta_format
+    public class v4l2_meta_format : V4L2Struct
     {
-        UInt32 dataformat;
-        UInt32 buffersize;
+        public UInt32 dataformat;
+        public UInt32 buffersize;
+
+        public new const int NativeSize = 4 * 2;
+
+        public unsafe v4l2_meta_format(byte* ptr) : base(ptr)
+        {
+        }
+
+        public override int GetSize()
+        {
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            dataformat = br.ReadUInt32();
+            buffersize = br.ReadUInt32();
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write(dataformat);
+            bw.Write(buffersize);
+            return selfPtr;
+        }
     } //__attribute__((packed));
 
-    //public class v4l2_format
-    //{
-    //    UInt32 type;
-    //    //union {
-    //        v4l2_pix_format      pix;     /* V4L2_BUF_TYPE_VIDEO_CAPTURE */
-    //        v4l2_pix_format_mplane   pix_mp;  /* V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE */
-    //        v4l2_window      win;     /* V4L2_BUF_TYPE_VIDEO_OVERLAY */
-    //  v4l2_vbi_format      vbi;     /* V4L2_BUF_TYPE_VBI_CAPTURE */
-    //  v4l2_sliced_vbi_format   sliced;  /* V4L2_BUF_TYPE_SLICED_VBI_CAPTURE */
-    //  v4l2_sdr_format      sdr;     /* V4L2_BUF_TYPE_SDR_CAPTURE */
-    //  v4l2_meta_format     meta;    /* V4L2_BUF_TYPE_META_CAPTURE */
-    //  byte[] raw_data = new byte[200];                   /* user-defined */
-    //    //} fmt;
-    //};
+    public class v4l2_format : V4L2Struct
+    {
+        public v4l2_buf_type type;
+        //union {
+        public v4l2_pix_format pix;     /* V4L2_BUF_TYPE_VIDEO_CAPTURE */
+        public v4l2_pix_format_mplane pix_mp;  /* V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE */
+        public v4l2_window win;     /* V4L2_BUF_TYPE_VIDEO_OVERLAY */
+        //public v4l2_vbi_format vbi;     /* V4L2_BUF_TYPE_VBI_CAPTURE */
+        //public v4l2_sliced_vbi_format sliced;  /* V4L2_BUF_TYPE_SLICED_VBI_CAPTURE */
+        //public v4l2_sdr_format sdr;     /* V4L2_BUF_TYPE_SDR_CAPTURE */
+        public v4l2_meta_format meta;    /* V4L2_BUF_TYPE_META_CAPTURE */
+        //public byte[] raw_data = new byte[200];                   /* user-defined */
+        //} fmt;
+
+        public unsafe v4l2_format() : base()
+        {
+            ms.Position = 4;
+            byte* p = ms.PositionPointer;
+            pix = new v4l2_pix_format(p);
+            pix_mp = new v4l2_pix_format_mplane(p);
+            win = new v4l2_window(p);
+            //vbi = new v4l2_vbi_format(p);
+            //sliced = new v4l2_sliced_vbi_format(p);
+            //sdr = new v4l2_sdr_format(p);
+            meta = new v4l2_meta_format(p);
+        }
+
+        public new const int NativeSize = 4 + 200; // Should be OK
+
+        public override int GetSize()
+        {
+            return NativeSize;
+        }
+
+        public override void UpdateFromUnmanaged()
+        {
+            ms.Position = 0;
+            type = (v4l2_buf_type)br.ReadUInt32();
+            switch(type)
+            {
+                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE:
+                    {
+                        pix.UpdateFromUnmanaged();
+                        break;
+                    }
+                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+                    {
+                        pix_mp.UpdateFromUnmanaged();
+                        break;
+                    }
+                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OVERLAY:
+                    {
+                        win.UpdateFromUnmanaged();
+                        break;
+                    }
+                case v4l2_buf_type.V4L2_BUF_TYPE_META_CAPTURE:
+                    {
+                        meta.UpdateFromUnmanaged();
+                        break;
+                    }
+                default:
+                    {
+                        throw new NotImplementedException($"Format {type:G} is not supported");
+                    }
+            }
+            ms.Position += 200;
+        }
+
+        public override nint GetPointer()
+        {
+            ms.Position = 0;
+            bw.Write((UInt32)type);
+            switch (type)
+            {
+                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE:
+                    {
+                        pix.GetPointer();
+                        break;
+                    }
+                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+                    {
+                        pix_mp.GetPointer();
+                        break;
+                    }
+                case v4l2_buf_type.V4L2_BUF_TYPE_VIDEO_OVERLAY:
+                    {
+                        win.GetPointer();
+                        break;
+                    }
+                case v4l2_buf_type.V4L2_BUF_TYPE_META_CAPTURE:
+                    {
+                        meta.GetPointer();
+                        break;
+                    }
+                default:
+                    {
+                        throw new NotImplementedException($"Format {type:G} is not supported");
+                    }
+            }
+            ms.Position += 200;
+            return selfPtr;
+        }
+    };
 
     //public class v4l2_streamparm
     //{

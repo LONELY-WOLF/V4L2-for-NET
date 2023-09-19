@@ -60,7 +60,7 @@ namespace Tests
         [TestMethod]
         public void v4l2_pix_format_SizeIsCorrect()
         {
-            V4L2StructSizeISCorrect(new v4l2_pix_format());
+            V4L2StructSizeISCorrect(new v4l2_pix_format(byte_ptr));
         }
 
         [TestMethod]
@@ -158,6 +158,18 @@ namespace Tests
         }
 
         [TestMethod]
+        public void v4l2_clip_SizeIsCorrect()
+        {
+            V4L2StructSizeISCorrect(new v4l2_clip(byte_ptr));
+        }
+
+        [TestMethod]
+        public void v4l2_window_SizeIsCorrect()
+        {
+            V4L2StructSizeISCorrect(new v4l2_window(byte_ptr));
+        }
+
+        [TestMethod]
         public void v4l2_captureparm_SizeIsCorrect()
         {
             V4L2StructSizeISCorrect(new v4l2_captureparm());
@@ -197,6 +209,32 @@ namespace Tests
         public void v4l2_bt_timings_SizeIsCorrect()
         {
             V4L2StructSizeISCorrect(new v4l2_bt_timings());
+        }
+
+        [TestMethod]
+        public void v4l2_plane_pix_format_SizeIsCorrect()
+        {
+            V4L2StructSizeISCorrect(new v4l2_plane_pix_format(byte_ptr));
+        }
+
+        [TestMethod]
+        public void v4l2_pix_format_mplane_SizeIsCorrect()
+        {
+            V4L2StructSizeISCorrect(new v4l2_pix_format_mplane(byte_ptr));
+        }
+
+        [TestMethod]
+        public void v4l2_meta_format_SizeIsCorrect()
+        {
+            V4L2StructSizeISCorrect(new v4l2_meta_format(byte_ptr));
+        }
+
+        [TestMethod]
+        public void v4l2_format_SizeIsCorrect()
+        {
+            v4l2_format f = new v4l2_format();
+            f.type = v4l2_buf_type.V4L2_BUF_TYPE_META_CAPTURE;
+            V4L2StructSizeISCorrect(f);
         }
     }
 }

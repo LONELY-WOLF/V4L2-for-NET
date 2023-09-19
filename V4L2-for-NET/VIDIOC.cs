@@ -19,7 +19,16 @@ namespace V4L2_for_NET
         }
 
         //#define VIDIOC_G_FMT                _IOWR('V',  4, struct v4l2_format)
+        public static int G_FMT(int fd, v4l2_format fmt)
+        {
+            return DoIoctl(fd, 4, IoctlAccess.RW, fmt);
+        }
+
         //#define VIDIOC_S_FMT                _IOWR('V',  5, struct v4l2_format)
+        public static int S_FMT(int fd, v4l2_format fmt)
+        {
+            return DoIoctl(fd, 5, IoctlAccess.RW, fmt);
+        }
 
         //#define VIDIOC_REQBUFS                _IOWR('V',  8, struct v4l2_requestbuffers)
         public static int REQBUFS(int fd, v4l2_requestbuffers bufs)
