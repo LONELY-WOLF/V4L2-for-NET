@@ -150,7 +150,7 @@ namespace V4L2_for_NET
         private static int DoIoctl(int fd, uint nr, IoctlAccess access, V4L2Struct arg)
         {
             int size = arg.GetSize();
-            uint code = GetIoctlCode(0, IoctlAccess.Read, size);
+            uint code = GetIoctlCode(nr, access, size);
             IntPtr ptr = arg.GetPointer();
             int ret = ioctl(fd, code, ptr);
             arg.UpdateFromUnmanaged();
@@ -159,7 +159,7 @@ namespace V4L2_for_NET
 
         private static int DoIoctl(int fd, uint nr, IoctlAccess access, IntPtr arg, int size)
         {
-            uint code = GetIoctlCode(0, IoctlAccess.Read, size);
+            uint code = GetIoctlCode(nr, access, size);
             int ret = ioctl(fd, code, arg);
             return ret;
         }
