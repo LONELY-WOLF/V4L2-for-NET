@@ -2308,7 +2308,7 @@ namespace V4L2_for_NET
 
         public unsafe v4l2_format() : base()
         {
-            ms.Position = 4;
+            ms.Position = 8; // Alignment?
             byte* p = ms.PositionPointer;
             pix = new v4l2_pix_format(p);
             pix_mp = new v4l2_pix_format_mplane(p);
@@ -2319,7 +2319,7 @@ namespace V4L2_for_NET
             meta = new v4l2_meta_format(p);
         }
 
-        public new const int NativeSize = 4 + 200; // Should be OK
+        public new const int NativeSize = 8 + 200; // Should be OK
 
         public override int GetSize()
         {
@@ -2357,7 +2357,7 @@ namespace V4L2_for_NET
                         throw new NotImplementedException($"Format {type:G} is not supported");
                     }
             }
-            ms.Position += 200;
+            ms.Position += 204;
         }
 
         public override nint GetPointer()
@@ -2391,7 +2391,7 @@ namespace V4L2_for_NET
                         throw new NotImplementedException($"Format {type:G} is not supported");
                     }
             }
-            ms.Position += 200;
+            ms.Position += 204;
             return selfPtr;
         }
     };
