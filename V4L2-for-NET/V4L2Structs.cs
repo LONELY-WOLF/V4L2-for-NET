@@ -68,6 +68,12 @@ namespace V4L2_for_NET
             }
         }
 
+        protected static void WriteStringToBuffer(string s, byte[] b)
+        {
+            Array.Clear(b);
+            Encoding.ASCII.GetBytes(s, 0, Math.Min(s.Length, b.Length), b, 0);
+        }
+
         public const int NativeSize = 0;
 
         public abstract int GetSize();
@@ -178,9 +184,12 @@ namespace V4L2_for_NET
 
     public class v4l2_capability : V4L2Struct
     {
-        public byte[] driver = new byte[16];
-        public byte[] card = new byte[32];
-        public byte[] bus_info = new byte[32];
+        public string driver = "";
+        public string card = "";
+        public string bus_info = "";
+        internal byte[] driver_buf = new byte[16];
+        internal byte[] card_buf = new byte[32];
+        internal byte[] bus_info_buf = new byte[32];
         public UInt32 version;
         public UInt32 capabilities;
         public UInt32 device_caps;
@@ -196,32 +205,31 @@ namespace V4L2_for_NET
         public override void UpdateFromUnmanaged()
         {
             ms.Position = 0;
-            driver = br.ReadBytes(16);
-            card = br.ReadBytes(32);
-            bus_info = br.ReadBytes(32);
+            driver_buf = br.ReadBytes(16);
+            card_buf = br.ReadBytes(32);
+            bus_info_buf = br.ReadBytes(32);
             version = br.ReadUInt32();
             capabilities = br.ReadUInt32();
             device_caps = br.ReadUInt32();
             reserved[0] = br.ReadUInt32();
             reserved[1] = br.ReadUInt32();
             reserved[2] = br.ReadUInt32();
+
+            driver = Encoding.ASCII.GetString(driver_buf);
+            card = Encoding.ASCII.GetString(card_buf);
+            bus_info = Encoding.ASCII.GetString(bus_info_buf);
         }
 
         public override nint GetPointer()
         {
+            WriteStringToBuffer(driver, driver_buf);
+            WriteStringToBuffer(card, card_buf);
+            WriteStringToBuffer(bus_info, bus_info_buf);
+
             ms.Position = 0;
-            for (int i = 0; i < 16; i++)
-            {
-                bw.Write(driver[i]);
-            }
-            for (int i = 0; i < 32; i++)
-            {
-                bw.Write(card[i]);
-            }
-            for (int i = 0; i < 32; i++)
-            {
-                bw.Write(bus_info[i]);
-            }
+            bw.Write(driver_buf);
+            bw.Write(card_buf);
+            bw.Write(bus_info_buf);
             bw.Write(version);
             bw.Write(capabilities);
             bw.Write(device_caps);
@@ -236,7 +244,8 @@ namespace V4L2_for_NET
     {
         public UInt32 width;
         public UInt32 height;
-        public UInt32 pixelformat;
+        public string pixelformat = "";
+        internal byte[] pixelformat_buf = new byte[4];
         public v4l2_field field;
         public UInt32 bytesperline; /* for padding, zero if unused */
         public UInt32 sizeimage;
@@ -275,7 +284,7 @@ namespace V4L2_for_NET
             ms.Position = 0;
             width = br.ReadUInt32();
             height = br.ReadUInt32();
-            pixelformat = br.ReadUInt32();
+            pixelformat_buf = br.ReadBytes(4);
             field = (v4l2_field)br.ReadUInt32();
             bytesperline = br.ReadUInt32();
             sizeimage = br.ReadUInt32();
@@ -285,14 +294,18 @@ namespace V4L2_for_NET
             union = br.ReadUInt32();
             quantization = (v4l2_quantization)br.ReadUInt32();
             xfer_func = (v4l2_xfer_func)br.ReadUInt32();
+
+            pixelformat = Encoding.ASCII.GetString(pixelformat_buf);
         }
 
         public override nint GetPointer()
         {
+            WriteStringToBuffer(pixelformat, pixelformat_buf);
+
             ms.Position = 0;
             bw.Write(width);
             bw.Write(height);
-            bw.Write(pixelformat);
+            bw.Write(pixelformat_buf);
             bw.Write((UInt32)field);
             bw.Write(bytesperline);
             bw.Write(sizeimage);
@@ -307,12 +320,26 @@ namespace V4L2_for_NET
     }
     public class v4l2_fmtdesc : V4L2Struct
     {
-        public UInt32 index;             /* Format number      */
+        /// <summary>
+        /// Format number
+        /// </summary>
+        public UInt32 index;
         public v4l2_buf_type type;
         public UInt32 flags;
-        public byte[] description = new byte[32];   /* Description string */
-        public UInt32 pixelformat;       /* Format fourcc      */
-        public UInt32 mbus_code;        /* Media bus code    */
+        /// <summary>
+        /// Description string
+        /// </summary>
+        public string description = "";
+        internal byte[] description_buf = new byte[32];
+        /// <summary>
+        /// Format fourcc
+        /// </summary>
+        public string pixelformat = "";
+        internal byte[] pixelformat_buf = new byte[4];
+        /// <summary>
+        /// Media bus code
+        /// </summary>
+        public UInt32 mbus_code;
         public UInt32[] reserved = new UInt32[3];
 
         public new const int NativeSize = 4 * 8 + 32;
@@ -328,22 +355,28 @@ namespace V4L2_for_NET
             index = br.ReadUInt32();
             type = (v4l2_buf_type)br.ReadUInt32();
             flags = br.ReadUInt32();
-            description = br.ReadBytes(32);
-            pixelformat = br.ReadUInt32();
+            description_buf = br.ReadBytes(32);
+            pixelformat_buf = br.ReadBytes(4);
             mbus_code = br.ReadUInt32();
             reserved[0] = br.ReadUInt32();
             reserved[1] = br.ReadUInt32();
             reserved[2] = br.ReadUInt32();
+
+            description = Encoding.ASCII.GetString(description_buf);
+            pixelformat = Encoding.ASCII.GetString(pixelformat_buf);
         }
 
         public override nint GetPointer()
         {
+            WriteStringToBuffer(description, description_buf);
+            WriteStringToBuffer(pixelformat, pixelformat_buf);
+
             ms.Position = 0;
             bw.Write(index);
             bw.Write((UInt32)type);
             bw.Write(flags);
-            bw.Write(description);
-            bw.Write(pixelformat);
+            bw.Write(description_buf);
+            bw.Write(pixelformat_buf);
             bw.Write(mbus_code);
             bw.Write(reserved[0]);
             bw.Write(reserved[1]);
@@ -428,9 +461,19 @@ namespace V4L2_for_NET
     }
     public class v4l2_frmsizeenum : V4L2Struct
     {
-        public UInt32 index;        /* Frame size number */
-        public UInt32 pixel_format; /* Pixel format */
-        public v4l2_frmsizetypes type;     /* Frame size type the device supports. */
+        /// <summary>
+        /// Frame size number
+        /// </summary>
+        public UInt32 index;
+        /// <summary>
+        /// Pixel format
+        /// </summary>
+        public string pixel_format = "";
+        internal byte[] pixel_format_buf = new byte[4];
+        /// <summary>
+        /// Frame size type the device supports.
+        /// </summary>
+        public v4l2_frmsizetypes type;
 
         //union {					/* Frame size */
         public v4l2_frmsize_discrete discrete;
@@ -459,7 +502,7 @@ namespace V4L2_for_NET
         {
             ms.Position = 0;
             index = br.ReadUInt32();
-            pixel_format = br.ReadUInt32();
+            pixel_format_buf = br.ReadBytes(4);
             type = (v4l2_frmsizetypes)br.ReadUInt32();
             switch (type)
             {
@@ -478,13 +521,17 @@ namespace V4L2_for_NET
             ms.Position += u_size;
             reserved[0] = br.ReadUInt32();
             reserved[1] = br.ReadUInt32();
+
+            pixel_format = Encoding.ASCII.GetString(pixel_format_buf);
         }
 
         public override nint GetPointer()
         {
+            WriteStringToBuffer(pixel_format, pixel_format_buf);
+
             ms.Position = 0;
             bw.Write(index);
-            bw.Write(pixel_format);
+            bw.Write(pixel_format_buf);
             bw.Write((UInt32)type);
             switch (type)
             {
@@ -552,11 +599,27 @@ namespace V4L2_for_NET
 
     public class v4l2_frmivalenum : V4L2Struct
     {
-        public UInt32 index;        /* Frame format index */
-        public UInt32 pixel_format; /* Pixel format */
-        public UInt32 width;        /* Frame width */
-        public UInt32 height;       /* Frame height */
-        public v4l2_frmivaltypes type;     /* Frame interval type the device supports. */
+        /// <summary>
+        /// Frame format index
+        /// </summary>
+        public UInt32 index;
+        /// <summary>
+        /// Pixel format
+        /// </summary>
+        public string pixel_format = "";
+        internal byte[] pixel_format_buf = new byte[4];
+        /// <summary>
+        /// Frame width
+        /// </summary>
+        public UInt32 width;
+        /// <summary>
+        /// Frame height
+        /// </summary>
+        public UInt32 height;
+        /// <summary>
+        /// Frame interval type the device supports.
+        /// </summary>
+        public v4l2_frmivaltypes type;
 
         //union {					/* Frame interval */
         public v4l2_fract discrete;
@@ -585,7 +648,7 @@ namespace V4L2_for_NET
         {
             ms.Position = 0;
             index = br.ReadUInt32();
-            pixel_format = br.ReadUInt32();
+            pixel_format_buf = br.ReadBytes(4);
             width = br.ReadUInt32();
             height = br.ReadUInt32();
             type = (v4l2_frmivaltypes)br.ReadUInt32();
@@ -606,13 +669,17 @@ namespace V4L2_for_NET
             ms.Position += u_size;
             reserved[0] = br.ReadUInt32();
             reserved[1] = br.ReadUInt32();
+
+            pixel_format = Encoding.ASCII.GetString(pixel_format_buf);
         }
 
         public override nint GetPointer()
         {
+            WriteStringToBuffer(pixel_format, pixel_format_buf);
+
             ms.Position = 0;
             bw.Write(index);
-            bw.Write(pixel_format);
+            bw.Write(pixel_format_buf);
             bw.Write(width);
             bw.Write(height);
             bw.Write((UInt32)type);
@@ -1149,18 +1216,23 @@ namespace V4L2_for_NET
     {
         public UInt32 capability;
         public UInt32 flags;
-        /* FIXME: in theory we should pass something like PCI device + memory
-         * region + offset instead of some physical address */
         public IntPtr base_ptr; // void*
                                 //struct {
         public UInt32 width;
         public UInt32 height;
-        public UInt32 pixelformat;
+        public string pixelformat = "";
+        internal byte[] pixelformat_buf = new byte[4];
         public v4l2_field field;
-        public UInt32 bytesperline; /* for padding, zero if unused */
+        /// <summary>
+        /// for padding, zero if unused
+        /// </summary>
+        public UInt32 bytesperline;
         public UInt32 sizeimage;
         public v4l2_colorspace colorspace;
-        public UInt32 priv;     /* reserved field, set to 0 */
+        /// <summary>
+        /// reserved field, set to 0
+        /// </summary>
+        public UInt32 priv;
         //   } fmt;
 
         public new const int NativeSize = 4 * 12;
@@ -1178,23 +1250,27 @@ namespace V4L2_for_NET
             base_ptr = (IntPtr)br.ReadInt64();
             width = br.ReadUInt32();
             height = br.ReadUInt32();
-            pixelformat = br.ReadUInt32();
+            pixelformat_buf = br.ReadBytes(4);
             field = (v4l2_field)br.ReadUInt32();
             bytesperline = br.ReadUInt32();
             sizeimage = br.ReadUInt32();
             colorspace = (v4l2_colorspace)br.ReadUInt32();
             priv = br.ReadUInt32();
+
+            pixelformat = Encoding.ASCII.GetString(pixelformat_buf);
         }
 
         public override nint GetPointer()
         {
+            WriteStringToBuffer(pixelformat, pixelformat_buf);
+
             ms.Position = 0;
             bw.Write(capability);
             bw.Write(flags);
             bw.Write(base_ptr);
             bw.Write(width);
             bw.Write(height);
-            bw.Write(pixelformat);
+            bw.Write(pixelformat_buf);
             bw.Write((UInt32)field);
             bw.Write(bytesperline);
             bw.Write(sizeimage);
@@ -1606,7 +1682,8 @@ namespace V4L2_for_NET
     {
         public UInt32 index;
         public UInt64 id;
-        public byte[] name = new byte[24];
+        public string name = "";
+        internal byte[] name_buf = new byte[24];
         /// <summary>
         /// Frames, not fields
         /// </summary>
@@ -1632,10 +1709,7 @@ namespace V4L2_for_NET
             ms.Position = 0;
             index = br.ReadUInt32();
             id = br.ReadUInt64();
-            for (int i = 0; i < 24; i++)
-            {
-                name[i] = br.ReadByte();
-            }
+            name_buf = br.ReadBytes(24);
             frameperiod.UpdateFromUnmanaged();
             ms.Position += frameperiod.GetSize();
             framelines = br.ReadUInt32();
@@ -1643,17 +1717,18 @@ namespace V4L2_for_NET
             {
                 reserved[i] = br.ReadUInt32();
             }
+
+            name = Encoding.ASCII.GetString(name_buf);
         }
 
         public override nint GetPointer()
         {
+            WriteStringToBuffer(name, name_buf);
+
             ms.Position = 0;
             bw.Write(index);
             bw.Write(id);
-            for (int i = 0; i < 24; i++)
-            {
-                bw.Write(name[i]);
-            }
+            bw.Write(name_buf);
             frameperiod.GetPointer();
             ms.Position += frameperiod.GetSize();
             bw.Write(framelines);
@@ -2170,7 +2245,8 @@ namespace V4L2_for_NET
     {
         public UInt32 width;
         public UInt32 height;
-        public UInt32 pixelformat;
+        public string pixelformat = "";
+        internal byte[] pixelformat_buf = new byte[4];
         public v4l2_field field;
         public v4l2_colorspace colorspace;
 
@@ -2208,7 +2284,7 @@ namespace V4L2_for_NET
             ms.Position = 0;
             width = br.ReadUInt32();
             height = br.ReadUInt32();
-            pixelformat = br.ReadUInt32();
+            pixelformat_buf = br.ReadBytes(4);
             field = (v4l2_field)br.ReadUInt32();
             colorspace = (v4l2_colorspace)br.ReadUInt32();
             for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
@@ -2225,14 +2301,18 @@ namespace V4L2_for_NET
             {
                 reserved[i] = br.ReadByte();
             }
+
+            pixelformat = Encoding.ASCII.GetString(pixelformat_buf);
         }
 
         public override nint GetPointer()
         {
+            WriteStringToBuffer(pixelformat, pixelformat_buf);
+
             ms.Position = 0;
             bw.Write(width);
             bw.Write(height);
-            bw.Write(pixelformat);
+            bw.Write(pixelformat_buf);
             bw.Write((UInt32)field);
             bw.Write((UInt32)colorspace);
             for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
