@@ -1015,9 +1015,9 @@ namespace V4L2_for_NET
 
         public unsafe v4l2_buffer() : base()
         {
-            ms.Position = 4 * 5;
+            ms.Position = 4 * 6; // Alignment
             timestamp = new timeval(ms.PositionPointer);
-            ms.Position = 4 * 5 + timestamp.GetSize();
+            ms.Position = 4 * 6 + timestamp.GetSize();
             timecode = new v4l2_timecode(ms.PositionPointer);
 
             planes_data = Marshal.AllocHGlobal(v4l2_plane.StructSize * (int)VIDEO_MAX.PLANES);
@@ -1033,7 +1033,8 @@ namespace V4L2_for_NET
             Marshal.FreeHGlobal(planes_data);
         }
 
-        public new const int NativeSize = 4 * 12 + timeval.NativeSize + v4l2_timecode.NativeSize;
+        // TODO: There is one more alignment somewhere
+        public new const int NativeSize = 4 * 12 + timeval.NativeSize + v4l2_timecode.NativeSize + 8;
 
         public override int GetSize()
         {
@@ -1050,12 +1051,13 @@ namespace V4L2_for_NET
             field = br.ReadUInt32();
             timestamp.UpdateFromUnmanaged();
             timecode.UpdateFromUnmanaged();
-            ms.Position += timestamp.GetSize() + timecode.GetSize();
+            ms.Position += timestamp.GetSize() + timecode.GetSize() + 4; // Alignment
             sequence = br.ReadUInt32();
             memory = (v4l2_memory)br.ReadUInt32();
             if (type == v4l2_buf_type.VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.VIDEO_OUTPUT_MPLANE)
             {
                 // Is it something to be done?
+                ms.Position += 8;
             }
             else
             {
@@ -1108,7 +1110,7 @@ namespace V4L2_for_NET
             bw.Write(field);
             timestamp.GetPointer();
             timecode.GetPointer();
-            ms.Position += timestamp.GetSize() + timecode.GetSize();
+            ms.Position += timestamp.GetSize() + timecode.GetSize() + 4; // Alignment
             bw.Write(sequence);
             bw.Write((UInt32)memory);
             if (type == v4l2_buf_type.VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.VIDEO_OUTPUT_MPLANE)
