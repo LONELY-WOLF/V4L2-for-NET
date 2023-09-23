@@ -67,7 +67,7 @@ namespace V4L2_for_NET
         //#define VIDIOC_STREAMOFF         _IOW('V', 19, int)
         public static unsafe int STREAMOFF(int fd, v4l2_buf_type type)
         {
-            return DoIoctl(fd, 18, IoctlAccess.Write, new IntPtr(&type), 4);
+            return DoIoctl(fd, 19, IoctlAccess.Write, new IntPtr(&type), 4);
         }
 
         //#define VIDIOC_G_PARM                _IOWR('V', 21, struct v4l2_streamparm)
