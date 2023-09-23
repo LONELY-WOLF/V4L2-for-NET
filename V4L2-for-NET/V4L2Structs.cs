@@ -876,46 +876,38 @@ namespace V4L2_for_NET
         public UInt32 bytesused;
         public UInt32 length;
         //union {
-        MemoryStream u_ms;
-        BinaryWriter u_bw;
-        BinaryReader u_br;
+        byte[] union = new byte[8];
         public UInt32 mem_offset
         {
             get
             {
-                ms.Position = 0;
-                return u_br.ReadUInt32();
+                return BitConverter.ToUInt32(union);
             }
             set
             {
-                ms.Position = 0;
-                u_bw.Write(value);
+                BitConverter.TryWriteBytes(union, value);
             }
         }
         public UInt64 userptr
         {
             get
             {
-                ms.Position = 0;
-                return u_br.ReadUInt64();
+                return BitConverter.ToUInt64(union);
             }
             set
             {
-                ms.Position = 0;
-                u_bw.Write(value);
+                BitConverter.TryWriteBytes(union, value);
             }
         }
         public Int32 fd
         {
             get
             {
-                ms.Position = 0;
-                return u_br.ReadInt32();
+                return BitConverter.ToInt32(union);
             }
             set
             {
-                ms.Position = 0;
-                u_bw.Write(value);
+                BitConverter.TryWriteBytes(union, value);
             }
         }
         //} m;
@@ -924,9 +916,6 @@ namespace V4L2_for_NET
 
         public unsafe v4l2_plane(byte* ptr) : base(ptr)
         {
-            u_ms = new MemoryStream(8);
-            u_bw = new BinaryWriter(u_ms);
-            u_br = new BinaryReader(u_ms);
         }
 
         public new const int NativeSize = 4 * 16;
@@ -943,8 +932,7 @@ namespace V4L2_for_NET
             ms.Position = 0;
             bytesused = br.ReadUInt32();
             length = br.ReadUInt32();
-            u_ms.Position = 0;
-            u_ms.Write(br.ReadBytes(8));
+            union = br.ReadBytes(8);
             data_offset = br.ReadUInt32();
             for (int i = 0; i < 11; i++)
             {
@@ -957,8 +945,7 @@ namespace V4L2_for_NET
             ms.Position = 0;
             bw.Write(bytesused);
             bw.Write(length);
-            u_ms.Position = 0;
-            u_ms.CopyTo(ms);
+            bw.Write(union);
             bw.Write(data_offset);
             for (int i = 0; i < 11; i++)
             {
