@@ -52,6 +52,12 @@ namespace V4L2_for_NET
             return DoIoctl(fd, 15, IoctlAccess.RW, buf);
         }
 
+        //#define VIDIOC_EXPBUF		_IOWR('V', 16, struct v4l2_exportbuffer)
+        public static int EXPBUF(int fd, v4l2_exportbuffer exportbuffer)
+        {
+            return DoIoctl(fd, 16, IoctlAccess.RW, exportbuffer);
+        }
+
         //#define VIDIOC_DQBUF                _IOWR('V', 17, struct v4l2_buffer)
         public static int DQBUF(int fd, v4l2_buffer buf)
         {
