@@ -103,7 +103,15 @@ namespace V4L2_for_NET
         //#define VIDIOC_S_FREQUENCY         _IOW('V', 57, struct v4l2_frequency)
         //#define VIDIOC_CROPCAP                _IOWR('V', 58, struct v4l2_cropcap)
         //#define VIDIOC_G_CROP                _IOWR('V', 59, struct v4l2_crop)
+        public static int G_CROP(int fd, v4l2_crop crop)
+        {
+            return DoIoctl(fd, 59, IoctlAccess.RW, crop);
+        }
         //#define VIDIOC_S_CROP                 _IOW('V', 60, struct v4l2_crop)
+        public static int S_CROP(int fd, v4l2_crop crop)
+        {
+            return DoIoctl(fd, 60, IoctlAccess.Write, crop);
+        }
         //#define VIDIOC_G_JPEGCOMP         _IOR('V', 61, struct v4l2_jpegcompression)
         //#define VIDIOC_S_JPEGCOMP         _IOW('V', 62, struct v4l2_jpegcompression)
         //#define VIDIOC_QUERYSTD               _IOR('V', 63, v4l2_std_id)
