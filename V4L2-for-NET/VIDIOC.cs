@@ -197,6 +197,18 @@ namespace V4L2_for_NET
             return code;
         }
 
+        private static unsafe void PrintMem(IntPtr ptr, int size)
+        {
+            UnmanagedMemoryStream ms = new UnmanagedMemoryStream((byte*)ptr.ToPointer(), size);
+            byte[] buf = new byte[size];
+            ms.Read(buf, 0, size);
+            foreach(byte b in buf)
+            {
+                Console.Write("{0:X2} ", b);
+            }
+            Console.WriteLine();
+        }
+
         [DllImport("libc", SetLastError = true)]
         internal static extern int ioctl(int fd, uint code, IntPtr argp);
 
