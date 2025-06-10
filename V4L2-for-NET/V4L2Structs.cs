@@ -23,6 +23,7 @@ namespace V4L2_for_NET
         protected BinaryReader br;
         protected BinaryWriter bw;
         protected IntPtr selfPtr;
+        protected readonly bool isNested;
 
         //public abstract byte[] Buffer { get; set; }
 
@@ -31,6 +32,7 @@ namespace V4L2_for_NET
         /// </summary>
         public unsafe V4L2Struct()
         {
+            isNested = false;
             selfPtr = Marshal.AllocHGlobal(GetSize());
             ms = new UnmanagedMemoryStream((byte*)selfPtr.ToPointer(), GetSize(), GetSize(), FileAccess.ReadWrite);
             br = new BinaryReader(ms, Encoding.UTF8, true);
@@ -43,6 +45,8 @@ namespace V4L2_for_NET
         /// <param name="ptr">Pointer to memory</param>
         public unsafe V4L2Struct(byte* ptr)
         {
+            isNested = true;
+            selfPtr = (IntPtr)ptr;
             ms = new UnmanagedMemoryStream(ptr, GetSize(), GetSize(), FileAccess.ReadWrite);
             br = new BinaryReader(ms, Encoding.UTF8, true);
             bw = new BinaryWriter(ms, Encoding.UTF8, true);
@@ -50,9 +54,12 @@ namespace V4L2_for_NET
 
         unsafe ~V4L2Struct()
         {
-            if (selfPtr != IntPtr.Zero)
+            if (!isNested)
             {
-                Marshal.FreeHGlobal(selfPtr);
+                if (selfPtr != IntPtr.Zero)
+                {
+                    Marshal.FreeHGlobal(selfPtr);
+                }
             }
         }
 
