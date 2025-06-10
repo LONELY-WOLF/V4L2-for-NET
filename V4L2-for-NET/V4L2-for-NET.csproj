@@ -6,6 +6,17 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+    <Authors>w0x1f</Authors>
+    <PackageRequireLicenseAcceptance>True</PackageRequireLicenseAcceptance>
+    <PackageTags>V4L2;Video4Linux2</PackageTags>
+    <RepositoryUrl>https://github.com/LONELY-WOLF/V4L2-for-NET</RepositoryUrl>
+    <Copyright>© Artem Sabadyr 2025</Copyright>
+    <PackageLicenseExpression>GPL-2.0-only</PackageLicenseExpression>
+    <Description>Video4Linux2 support for .NET</Description>
+    <Title>$(AssemblyName)</Title>
+    <AssemblyVersion>1.0.1</AssemblyVersion>
+    <Version>$(AssemblyVersion)</Version>
   </PropertyGroup>
 
 </Project>
