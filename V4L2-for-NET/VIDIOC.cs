@@ -167,6 +167,10 @@ namespace V4L2_for_NET
             uint code = GetIoctlCode(nr, access, size);
             IntPtr ptr = arg.GetPointer();
             int ret = ioctl(fd, code, ptr);
+            if (ret != 0)
+            {
+                Console.WriteLine("ERROR: {0}", Marshal.GetLastPInvokeErrorMessage());
+            }
             arg.UpdateFromUnmanaged();
             return ret;
         }
@@ -175,6 +179,10 @@ namespace V4L2_for_NET
         {
             uint code = GetIoctlCode(nr, access, size);
             int ret = ioctl(fd, code, arg);
+            if (ret != 0)
+            {
+                Console.WriteLine("ERROR: {0}", Marshal.GetLastPInvokeErrorMessage());
+            }
             return ret;
         }
 
