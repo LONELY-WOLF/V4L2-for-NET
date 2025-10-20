@@ -31,9 +31,9 @@ namespace V4L2_for_NET
         }
 
         //#define VIDIOC_REQBUFS                _IOWR('V',  8, struct v4l2_requestbuffers)
-        public static int REQBUFS(int fd, v4l2_requestbuffers bufs)
+        public static int REQBUFS(int fd, ref v4l2_requestbuffers bufs)
         {
-            return DoIoctl(fd, 8, IoctlAccess.RW, bufs);
+            return DoIoctl(fd, 8, IoctlAccess.RW, ref bufs);
         }
 
         //#define VIDIOC_QUERYBUF                _IOWR('V',  9, struct v4l2_buffer)
@@ -53,9 +53,9 @@ namespace V4L2_for_NET
         }
 
         //#define VIDIOC_EXPBUF		_IOWR('V', 16, struct v4l2_exportbuffer)
-        public static int EXPBUF(int fd, v4l2_exportbuffer exportbuffer)
+        public static int EXPBUF(int fd, ref v4l2_exportbuffer exportbuffer)
         {
-            return DoIoctl(fd, 16, IoctlAccess.RW, exportbuffer);
+            return DoIoctl(fd, 16, IoctlAccess.RW, ref exportbuffer);
         }
 
         //#define VIDIOC_DQBUF                _IOWR('V', 17, struct v4l2_buffer)
@@ -103,14 +103,14 @@ namespace V4L2_for_NET
         //#define VIDIOC_S_FREQUENCY         _IOW('V', 57, struct v4l2_frequency)
         //#define VIDIOC_CROPCAP                _IOWR('V', 58, struct v4l2_cropcap)
         //#define VIDIOC_G_CROP                _IOWR('V', 59, struct v4l2_crop)
-        public static int G_CROP(int fd, v4l2_crop crop)
+        public static int G_CROP(int fd, ref v4l2_crop crop)
         {
-            return DoIoctl(fd, 59, IoctlAccess.RW, crop);
+            return DoIoctl(fd, 59, IoctlAccess.RW, ref crop);
         }
         //#define VIDIOC_S_CROP                 _IOW('V', 60, struct v4l2_crop)
-        public static int S_CROP(int fd, v4l2_crop crop)
+        public static int S_CROP(int fd, ref v4l2_crop crop)
         {
-            return DoIoctl(fd, 60, IoctlAccess.Write, crop);
+            return DoIoctl(fd, 60, IoctlAccess.Write, ref crop);
         }
         //#define VIDIOC_G_JPEGCOMP         _IOR('V', 61, struct v4l2_jpegcompression)
         //#define VIDIOC_S_JPEGCOMP         _IOW('V', 62, struct v4l2_jpegcompression)
@@ -172,6 +172,22 @@ namespace V4L2_for_NET
                 Console.WriteLine("ERROR: {0}", Marshal.GetLastPInvokeErrorMessage());
             }
             arg.UpdateFromUnmanaged();
+            return ret;
+        }
+
+        private static int DoIoctl<T>(int fd, uint nr, IoctlAccess access, ref T arg) where T : struct
+        {
+            int size = Marshal.SizeOf<T>();
+            uint code = GetIoctlCode(nr, access, size);
+            nint ptr = Marshal.AllocHGlobal(size);
+            Marshal.StructureToPtr(arg, ptr, false);
+            int ret = ioctl(fd, code, ptr);
+            arg = Marshal.PtrToStructure<T>(ptr);
+            Marshal.FreeHGlobal(ptr);
+            if (ret != 0)
+            {
+                Console.WriteLine("ERROR: {0}", Marshal.GetLastPInvokeErrorMessage());
+            }
             return ret;
         }
 

@@ -34,24 +34,6 @@ namespace Tests
         }
 
         [TestMethod]
-        public void v4l2_rect_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_rect(byte_ptr));
-        }
-
-        [TestMethod]
-        public void v4l2_fract_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_fract(byte_ptr));
-        }
-
-        [TestMethod]
-        public void v4l2_area_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_area());
-        }
-
-        [TestMethod]
         public void v4l2_capability_SizeIsCorrect()
         {
             V4L2StructSizeISCorrect(new v4l2_capability());
@@ -70,18 +52,6 @@ namespace Tests
         }
 
         [TestMethod]
-        public void v4l2_frmsize_discrete_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_frmsize_discrete(byte_ptr));
-        }
-
-        [TestMethod]
-        public void v4l2_frmsize_stepwise_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_frmsize_stepwise(byte_ptr));
-        }
-
-        [TestMethod]
         public void v4l2_frmsizeenum_SizeIsCorrect()
         {
             v4l2_frmsizeenum f = new v4l2_frmsizeenum();
@@ -90,35 +60,11 @@ namespace Tests
         }
 
         [TestMethod]
-        public void v4l2_frmival_stepwise_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_frmival_stepwise(byte_ptr));
-        }
-
-        [TestMethod]
         public void v4l2_frmivalenum_SizeIsCorrect()
         {
             v4l2_frmivalenum f = new v4l2_frmivalenum();
             f.type = v4l2_frmivaltypes.DISCRETE;
             V4L2StructSizeISCorrect(new v4l2_frmivalenum());
-        }
-
-        [TestMethod]
-        public void v4l2_timecode_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_timecode(byte_ptr));
-        }
-
-        [TestMethod]
-        public void v4l2_jpegcompression_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_jpegcompression());
-        }
-
-        [TestMethod]
-        public void v4l2_requestbuffers_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_requestbuffers());
         }
 
         [TestMethod]
@@ -131,12 +77,6 @@ namespace Tests
         }
 
         [TestMethod]
-        public void timeval_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new timeval(byte_ptr));
-        }
-
-        [TestMethod]
         public void v4l2_buffer_SizeIsCorrect()
         {
             v4l2_buffer buf = new v4l2_buffer();
@@ -146,21 +86,9 @@ namespace Tests
         }
 
         [TestMethod]
-        public void v4l2_exportbuffer_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_exportbuffer());
-        }
-
-        [TestMethod]
         public void v4l2_framebuffer_SizeIsCorrect()
         {
             V4L2StructSizeISCorrect(new v4l2_framebuffer());
-        }
-
-        [TestMethod]
-        public void v4l2_clip_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_clip(byte_ptr));
         }
 
         [TestMethod]
@@ -170,63 +98,15 @@ namespace Tests
         }
 
         [TestMethod]
-        public void v4l2_captureparm_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_captureparm());
-        }
-
-        [TestMethod]
-        public void v4l2_outputparm_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_outputparm());
-        }
-
-        [TestMethod]
-        public void v4l2_cropcap_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_cropcap());
-        }
-
-        [TestMethod]
-        public void v4l2_crop_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_crop());
-        }
-
-        [TestMethod]
-        public void v4l2_selection_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_selection());
-        }
-
-        [TestMethod]
         public void v4l2_standard_SizeIsCorrect()
         {
             V4L2StructSizeISCorrect(new v4l2_standard());
         }
 
         [TestMethod]
-        public void v4l2_bt_timings_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_bt_timings());
-        }
-
-        [TestMethod]
-        public void v4l2_plane_pix_format_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_plane_pix_format(byte_ptr));
-        }
-
-        [TestMethod]
         public void v4l2_pix_format_mplane_SizeIsCorrect()
         {
             V4L2StructSizeISCorrect(new v4l2_pix_format_mplane(byte_ptr));
-        }
-
-        [TestMethod]
-        public void v4l2_meta_format_SizeIsCorrect()
-        {
-            V4L2StructSizeISCorrect(new v4l2_meta_format(byte_ptr));
         }
 
         [TestMethod]

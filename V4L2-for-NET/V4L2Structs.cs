@@ -97,11 +97,22 @@ namespace V4L2_for_NET
             return value;
         }
 
+        protected static unsafe T ReadValue<T>(nint ptr) where T : struct
+        {
+            T value = Marshal.PtrToStructure<T>(ptr);
+            return value;
+        }
+
         protected unsafe void WriteValue<T>(T value) where T : struct
         {
             Marshal.StructureToPtr(value, (nint)ms.PositionPointer, false);
 			ms.PositionPointer += Marshal.SizeOf(value);
-		}
+        }
+
+        protected static unsafe void WriteValue<T>(T value, nint ptr) where T : struct
+        {
+            Marshal.StructureToPtr(value, ptr, false);
+        }
     }
 
     public struct v4l2_rect
@@ -325,7 +336,7 @@ namespace V4L2_for_NET
             bw.Write(reserved[2]);
             return selfPtr;
         }
-    };
+    }
 
     public struct v4l2_frmsize_discrete
     {
@@ -402,7 +413,7 @@ namespace V4L2_for_NET
                         break;
                     }
             }
-            ms.Position += u_size;
+            ms.Position = NativeSize - 8;
             reserved[0] = br.ReadUInt32();
             reserved[1] = br.ReadUInt32();
 
@@ -431,12 +442,12 @@ namespace V4L2_for_NET
                         break;
                     }
             }
-            ms.Position += u_size;
+            ms.Position = NativeSize - 8;
             bw.Write(reserved[0]);
             bw.Write(reserved[1]);
             return selfPtr;
         }
-    };
+    }
 
     public struct v4l2_frmival_stepwise
     {
@@ -550,7 +561,7 @@ namespace V4L2_for_NET
             bw.Write(reserved[1]);
             return selfPtr;
         }
-    };
+    }
 
     public struct v4l2_timecode
     {
@@ -692,7 +703,7 @@ namespace V4L2_for_NET
             }
             return selfPtr;
         }
-    };
+    }
 
     public struct timeval
     {
@@ -746,7 +757,7 @@ namespace V4L2_for_NET
         }
 
         // TODO: There is one more alignment somewhere
-        public new int NativeSize => 4 * 12 + Marshal.SizeOf<timeval + v4l2_timecode.NativeSize + 8;
+        public new int NativeSize => 4 * 12 + Marshal.SizeOf<timeval>() + Marshal.SizeOf<v4l2_timecode>() + 8;
 
         public override int GetSize()
         {
@@ -761,9 +772,9 @@ namespace V4L2_for_NET
             bytesused = br.ReadUInt32();
             flags = br.ReadUInt32();
             field = br.ReadUInt32();
-            timestamp.UpdateFromUnmanaged();
-            timecode.UpdateFromUnmanaged();
-            ms.Position += timestamp.GetSize() + timecode.GetSize() + 4; // Alignment
+            timestamp = ReadValue<timeval>();
+            timecode = ReadValue<v4l2_timecode>();
+            ms.Position += 4; // Alignment
             sequence = br.ReadUInt32();
             memory = (v4l2_memory)br.ReadUInt32();
             if (type == v4l2_buf_type.VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.VIDEO_OUTPUT_MPLANE)
@@ -824,9 +835,9 @@ namespace V4L2_for_NET
             bw.Write(bytesused);
             bw.Write(flags);
             bw.Write(field);
-            timestamp.GetPointer();
-            timecode.GetPointer();
-            ms.Position += timestamp.GetSize() + timecode.GetSize() + 4; // Alignment
+            WriteValue(timestamp);
+            WriteValue(timecode);
+            ms.Position += 4; // Alignment
             bw.Write(sequence);
             bw.Write((UInt32)memory);
             if (type == v4l2_buf_type.VIDEO_CAPTURE_MPLANE || type == v4l2_buf_type.VIDEO_OUTPUT_MPLANE)
@@ -869,7 +880,7 @@ namespace V4L2_for_NET
             bw.Write(request_fd);
             return selfPtr;
         }
-    };
+    }
 
     public struct v4l2_exportbuffer
     {
@@ -948,7 +959,7 @@ namespace V4L2_for_NET
             bw.Write(priv);
             return selfPtr;
         }
-    };
+    }
 
     public struct v4l2_clip
     {
@@ -981,10 +992,9 @@ namespace V4L2_for_NET
             ms.Position = 0;
             w = ReadValue<v4l2_rect>();
             clips_data = Marshal.AllocHGlobal(v4l2_plane.StructSize * (int)VIDEO_MAX.PLANES);
-            byte* planes_ptr = (byte*)clips_data.ToPointer();
             for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
             {
-                clips[i] = new v4l2_clip(planes_ptr + (NativeSize * i));
+                clips[i] = ReadValue<v4l2_clip>(clips_data + (Marshal.SizeOf<v4l2_clip>() * i));
             }
         }
 
@@ -1014,7 +1024,7 @@ namespace V4L2_for_NET
             // Now we can read clips if needed
             for (int i = 0; i < clipcount; i++)
             {
-                clips[i].UpdateFromUnmanaged();
+                clips[i] = ReadValue<v4l2_clip>(clips_data + (Marshal.SizeOf<v4l2_clip>() * i));
             }
         }
 
@@ -1026,7 +1036,7 @@ namespace V4L2_for_NET
             WriteValue(chromakey);
             for (int i = 0; i < clipcount; i++)
             {
-                clips[i].GetPointer();
+                WriteValue(clips[i], clips_data + (Marshal.SizeOf<v4l2_clip>() * i));
             }
             WriteValue(clips_data);
             WriteValue(clipcount);
@@ -1034,7 +1044,7 @@ namespace V4L2_for_NET
             WriteValue(global_alpha);
             return selfPtr;
         }
-    };
+    }
 
     public struct v4l2_captureparm
     {
@@ -1128,10 +1138,10 @@ namespace V4L2_for_NET
         public unsafe v4l2_standard() : base()
         {
             ms.Position = 4 + 8 + 24;
-            frameperiod = new v4l2_fract(ms.PositionPointer);
+            frameperiod = ReadValue<v4l2_fract>();
         }
 
-        public new const int NativeSize = 4 * 8 + 24 + v4l2_fract.NativeSize;
+        public new int NativeSize => 4 * 8 + 24 + Marshal.SizeOf<v4l2_fract>();
 
         public override int GetSize()
         {
@@ -1144,8 +1154,7 @@ namespace V4L2_for_NET
             index = br.ReadUInt32();
             id = br.ReadUInt64();
             name_buf = br.ReadBytes(24);
-            frameperiod.UpdateFromUnmanaged();
-            ms.Position += frameperiod.GetSize();
+            frameperiod = ReadValue<v4l2_fract>();
             framelines = br.ReadUInt32();
             for (int i = 0; i < 4; i++)
             {
@@ -1163,8 +1172,7 @@ namespace V4L2_for_NET
             bw.Write(index);
             bw.Write(id);
             bw.Write(name_buf);
-            frameperiod.GetPointer();
-            ms.Position += frameperiod.GetSize();
+            WriteValue(frameperiod);
             bw.Write(framelines);
             for (int i = 0; i < 4; i++)
             {
@@ -1172,7 +1180,7 @@ namespace V4L2_for_NET
             }
             return selfPtr;
         }
-    };
+    }
 
     public struct v4l2_bt_timings
     {
@@ -1214,7 +1222,7 @@ namespace V4L2_for_NET
         UInt32 pad;
         UInt32[] reserved = new UInt32[2];
         v4l2_dv_timings timings;
-    };
+    }
 
     public struct v4l2_bt_timings_cap
     {
@@ -1239,7 +1247,7 @@ namespace V4L2_for_NET
         v4l2_bt_timings_cap bt;
         UInt32[] raw_data = new UInt32[32];
         //};
-    };
+    }
 
     public class v4l2_input
     {
@@ -1252,7 +1260,7 @@ namespace V4L2_for_NET
         UInt32 status;
         UInt32 capabilities;
         UInt32[] reserved = new UInt32[3];
-    };
+    }
 
     public class v4l2_output
     {
@@ -1264,13 +1272,13 @@ namespace V4L2_for_NET
         UInt64 std;
         UInt32 capabilities;
         UInt32[] reserved = new UInt32[3];
-    };
+    }
 
     public struct v4l2_control
     {
         public UInt32 id;
         public Int32 value;
-    };
+    }
 
     // TODO: need id -> payload dict
 
@@ -1336,7 +1344,7 @@ namespace V4L2_for_NET
         Int32 default_value;
         UInt32 flags;
         UInt32[] reserved = new UInt32[2];
-    };
+    }
 
     public class v4l2_query_ext_ctrl
     {
@@ -1353,7 +1361,7 @@ namespace V4L2_for_NET
         UInt32 nr_of_dims;
         UInt32[] dims = new UInt32[(int)V4L2_CTRL.MAX_DIMS];
         UInt32[] reserved = new UInt32[32];
-    };
+    }
 
     public class v4l2_querymenu
     {
@@ -1379,7 +1387,7 @@ namespace V4L2_for_NET
         Int32 signal;
         Int32 afc;
         UInt32[] reserved = new uint[4];
-    };
+    }
 
     public class v4l2_modulator
     {
@@ -1391,7 +1399,7 @@ namespace V4L2_for_NET
         UInt32 txsubchans;
         v4l2_tuner_type type;
         UInt32[] reserved = new UInt32[3];
-    };
+    }
 
     public class v4l2_frequency
     {
@@ -1399,7 +1407,7 @@ namespace V4L2_for_NET
         v4l2_tuner_type type;
         UInt32 frequency;
         UInt32[] reserved = new UInt32[8];
-    };
+    }
 
     public class v4l2_frequency_band
     {
@@ -1411,7 +1419,7 @@ namespace V4L2_for_NET
         UInt32 rangehigh;
         UInt32 modulation;
         UInt32[] reserved = new UInt32[9];
-    };
+    }
 
     public class v4l2_hw_freq_seek
     {
@@ -1423,7 +1431,7 @@ namespace V4L2_for_NET
         UInt32 rangelow;
         UInt32 rangehigh;
         UInt32[] reserved = new UInt32[5];
-    };
+    }
 
     public class v4l2_rds_data
     {
@@ -1439,7 +1447,7 @@ namespace V4L2_for_NET
         UInt32 capability;
         UInt32 mode;
         UInt32[] reserved = new UInt32[2];
-    };
+    }
 
     public class v4l2_audioout
     {
@@ -1448,7 +1456,7 @@ namespace V4L2_for_NET
         UInt32 capability;
         UInt32 mode;
         UInt32[] reserved = new UInt32[2];
-    };
+    }
 
     public class v4l2_enc_idx_entry
     {
@@ -1457,7 +1465,7 @@ namespace V4L2_for_NET
         UInt32 length;
         UInt32 flags;
         UInt32[] reserved = new UInt32[2];
-    };
+    }
 
     public class v4l2_enc_idx
     {
@@ -1465,14 +1473,14 @@ namespace V4L2_for_NET
         UInt32 entries_cap;
         UInt32[] reserved = new UInt32[4];
         v4l2_enc_idx_entry[] entry = new v4l2_enc_idx_entry[(int)V4L2_ENC_IDX.ENTRIES];
-    };
+    }
 
     public class v4l2_encoder_cmd
     {
         UInt32 cmd;
         UInt32 flags;
         UInt32[] raw_data = new UInt32[8];
-    };
+    }
 
     public class v4l2_decoder_cmd
     {
@@ -1491,7 +1499,7 @@ namespace V4L2_for_NET
         UInt32 format;
         //} start;
         UInt32[] raw_data = new UInt32[16];
-    };
+    }
 
     public class v4l2_vbi_format
     {
@@ -1503,7 +1511,7 @@ namespace V4L2_for_NET
         UInt32[] count = new UInt32[2];
         UInt32 flags;            /* V4L2_VBI_* */
         UInt32[] reserved = new UInt32[2];      /* must be zero */
-    };
+    }
 
     public class v4l2_sliced_vbi_format
     {
@@ -1515,7 +1523,7 @@ namespace V4L2_for_NET
         UInt16[,] service_lines = new UInt16[2, 24];
         UInt32 io_size;
         UInt32[] reserved = new UInt32[2];            /* must be zero */
-    };
+    }
 
     public class v4l2_sliced_vbi_cap
     {
@@ -1527,7 +1535,7 @@ namespace V4L2_for_NET
         UInt16[,] service_lines = new UInt16[2, 24];
         v4l2_buf_type type;
         UInt32[] reserved = new UInt32[3];    /* must be 0 */
-    };
+    }
 
     public class v4l2_sliced_vbi_data
     {
@@ -1536,7 +1544,7 @@ namespace V4L2_for_NET
         UInt32 line;           /* 1-23 */
         UInt32 reserved;       /* must be 0 */
         byte[] data = new byte[48];
-    };
+    }
 
     public class v4l2_mpeg_vbi_itv0_line
     {
@@ -1596,14 +1604,13 @@ namespace V4L2_for_NET
         public unsafe v4l2_pix_format_mplane(byte* ptr) : base(ptr)
         {
             ms.Position = 4 * 5;
-            byte* p = ms.PositionPointer;
-            for(int i=0;i<(int)VIDEO_MAX.PLANES;i++)
+            for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
             {
-                plane_fmt[i] = new v4l2_plane_pix_format(p + (v4l2_plane_pix_format.NativeSize * i));
+                plane_fmt[i] = ReadValue<v4l2_plane_pix_format>();
             }
         }
 
-        public new const int NativeSize = 4 * 5 + 12 + (v4l2_plane_pix_format.NativeSize * (int)VIDEO_MAX.PLANES);
+        public new int NativeSize => 4 * 5 + 12 + (Marshal.SizeOf<v4l2_plane_pix_format>() * (int)VIDEO_MAX.PLANES);
 
         public override int GetSize()
         {
@@ -1620,9 +1627,8 @@ namespace V4L2_for_NET
             colorspace = (v4l2_colorspace)br.ReadUInt32();
             for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
             {
-                plane_fmt[i].UpdateFromUnmanaged();
+                plane_fmt[i] = ReadValue<v4l2_plane_pix_format>();
             }
-            ms.Position += v4l2_plane_pix_format.NativeSize * (int)VIDEO_MAX.PLANES;
             num_planes = br.ReadByte();
             flags = br.ReadByte();
             union = br.ReadByte();
@@ -1648,9 +1654,8 @@ namespace V4L2_for_NET
             bw.Write((UInt32)colorspace);
             for (int i = 0; i < (int)VIDEO_MAX.PLANES; i++)
             {
-                plane_fmt[i].GetPointer();
+                WriteValue(plane_fmt[i]);
             }
-            ms.Position += v4l2_plane_pix_format.NativeSize * (int)VIDEO_MAX.PLANES;
             bw.Write(num_planes);
             bw.Write(flags);
             bw.Write(union);
@@ -1702,7 +1707,8 @@ namespace V4L2_for_NET
             //vbi = new v4l2_vbi_format(p);
             //sliced = new v4l2_sliced_vbi_format(p);
             //sdr = new v4l2_sdr_format(p);
-            meta = new v4l2_meta_format(p);
+            ms.Position = 8;
+            meta = ReadValue<v4l2_meta_format>();
         }
 
         public new const int NativeSize = 8 + 200; // Should be OK
@@ -1716,7 +1722,8 @@ namespace V4L2_for_NET
         {
             ms.Position = 0;
             type = (v4l2_buf_type)br.ReadUInt32();
-            switch(type)
+            ms.Position = 8;
+            switch (type)
             {
                 case v4l2_buf_type.VIDEO_CAPTURE:
                     {
@@ -1735,7 +1742,7 @@ namespace V4L2_for_NET
                     }
                 case v4l2_buf_type.META_CAPTURE:
                     {
-                        meta.UpdateFromUnmanaged();
+                        meta = ReadValue<v4l2_meta_format>();
                         break;
                     }
                 default:
@@ -1743,13 +1750,14 @@ namespace V4L2_for_NET
                         throw new NotImplementedException($"Format {type:G} is not supported");
                     }
             }
-            ms.Position += 204;
+            ms.Position = 208;
         }
 
         public override nint GetPointer()
         {
             ms.Position = 0;
             bw.Write((UInt32)type);
+            ms.Position = 8;
             switch (type)
             {
                 case v4l2_buf_type.VIDEO_CAPTURE:
@@ -1769,7 +1777,7 @@ namespace V4L2_for_NET
                     }
                 case v4l2_buf_type.META_CAPTURE:
                     {
-                        meta.GetPointer();
+                        WriteValue(meta);
                         break;
                     }
                 default:
@@ -1777,10 +1785,10 @@ namespace V4L2_for_NET
                         throw new NotImplementedException($"Format {type:G} is not supported");
                     }
             }
-            ms.Position += 204;
+            ms.Position = 208;
             return selfPtr;
         }
-    };
+    }
 
     //public class v4l2_streamparm
     //{
